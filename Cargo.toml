@@ -1,0 +1,15 @@
+[workspace]
+resolver = "3"
+members = ["."]
+
+[package]
+name = "cubic-bitfield"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+criterion = "0.8.2"
+
+[[bench]]
+name = "transposes"
+harness = false
