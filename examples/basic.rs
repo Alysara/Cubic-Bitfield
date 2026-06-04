@@ -12,9 +12,9 @@ fn main() {
         }
     }
 
-    for i in 0..1024 {
-        bitfield.as_mut_slice()[i] = (i * 12341) as u32;
-    }
+    // for i in 0..1024 {
+    //     bitfield.as_mut_slice()[i] = (i * 12341) as u32;
+    // }
 
     // for z in 0..32 {
     //     for y in (z + 1)..32 {
@@ -22,17 +22,14 @@ fn main() {
     //     }
     // }
 
-    println!("Input:");
-    bitfield.print_inner_slices(0..1);
+    let array_u2: [u64; 1024] = std::array::from_fn(|_| 0xF0F0F0F0F0F0F0F0);
+    let array_u4: [u64; 2048] = std::array::from_fn(|_| 0x00FF00FF00FF00FF);
+    let array_u8: [u64; 4096] = std::array::from_fn(|_| 0x00FF00FF00FF00FF);
+    let array_u16: [u64; 8192] = std::array::from_fn(|_| 0x0000FFFF0000FFFF);
 
-    bitfield.inner_transpose_scalar();
-    black_box(&bitfield);
+    // let bitfield = black_box(Bitfield::from_packed_u16::<true>(&array_u16, black_box(0)));
+    // let bitfield = black_box(Bitfield::from_packed_u8::<true>(&array_u8, black_box(0)));
+    let bitfield = black_box(Bitfield::from_packed_u4::<true>(&array_u4, black_box(0)));
 
-    println!("Output:");
-    bitfield.print_inner_slices(0..1);
-
-    // bitfield.print_outer_slices(0..3);
-
-    bitfield.outer_transpose();
-    black_box(&bitfield);
+    bitfield.print_inner_slices(0..32);
 }

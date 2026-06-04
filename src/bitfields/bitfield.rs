@@ -1,3 +1,4 @@
+use std::mem::transmute;
 use std::ops::*;
 use std::simd::prelude::*;
 
@@ -71,6 +72,185 @@ impl Bitfield {
         }
     }
 
+    pub fn from_packed_u1<const EQ: bool>(array: &[u64; 512]) -> Self {
+        let array_u32: &[u32; 1024] = unsafe { transmute(array) };
+        if EQ {
+            Self {
+                data: array_u32.clone(),
+            }
+        } else {
+            let data: [u32; 1024] = std::array::from_fn(|i| !array_u32[i]);
+            Self { data }
+        }
+    }
+
+    #[inline(never)]
+    pub fn from_packed_u2<const EQ: bool>(array: &[u64; 1024], match_val: u8) -> Self {
+        let mut result = Self::new(0);
+        let result_u64: &mut [u64; 512] = unsafe { transmute(&mut result.data) };
+        let array_u8: &[u8; 8192] = unsafe { transmute(array) };
+
+        let target1 = u8x64::splat(match_val);
+        let target2 = u8x64::splat(match_val << 2);
+        let target3 = u8x64::splat(match_val << 4);
+        let target4 = u8x64::splat(match_val << 6);
+
+        let mask1 = u8x64::splat(0x03);
+        let mask2 = u8x64::splat(0x0C);
+        let mask3 = u8x64::splat(0x30);
+        let mask4 = u8x64::splat(0xC0);
+
+        let case = if EQ { u8::MAX } else { 0 };
+        let true_case = u8x64::splat(case);
+
+        for i in (0..8192).step_by(64) {
+            let block = u8x64::from_slice(&array_u8[i..]);
+            let b1 = block & mask1;
+            let b2 = block & mask2;
+            let b3 = block & mask3;
+            let b4 = block & mask4;
+
+            // Faster, but needs pdep
+            // let pre1 = b1.simd_eq(target1).to_bitmask();
+            // let pre2 = b2.simd_eq(target2).to_bitmask();
+            // let pre3 = b3.simd_eq(target3).to_bitmask();
+            // let pre4 = b4.simd_eq(target4).to_bitmask();
+            //
+            // let bit_idx = i >> 4; // 256 bits out per 64 bytes = 4 u64s, i/16
+            // unsafe {
+            //     *result_u64.get_unchecked_mut(bit_idx) =
+            //         _pdep_u64(pre1 & 0xFFFF, 0x1111111111111111)
+            //             | _pdep_u64(pre2 & 0xFFFF, 0x2222222222222222)
+            //             | _pdep_u64(pre3 & 0xFFFF, 0x4444444444444444)
+            //             | _pdep_u64(pre4 & 0xFFFF, 0x8888888888888888);
+            //     *result_u64.get_unchecked_mut(bit_idx + 1) =
+            //         _pdep_u64((pre1 >> 16) & 0xFFFF, 0x1111111111111111)
+            //             | _pdep_u64((pre2 >> 16) & 0xFFFF, 0x2222222222222222)
+            //             | _pdep_u64((pre3 >> 16) & 0xFFFF, 0x4444444444444444)
+            //             | _pdep_u64((pre4 >> 16) & 0xFFFF, 0x8888888888888888);
+            //     *result_u64.get_unchecked_mut(bit_idx + 2) =
+            //         _pdep_u64((pre1 >> 32) & 0xFFFF, 0x1111111111111111)
+            //             | _pdep_u64((pre2 >> 32) & 0xFFFF, 0x2222222222222222)
+            //             | _pdep_u64((pre3 >> 32) & 0xFFFF, 0x4444444444444444)
+            //             | _pdep_u64((pre4 >> 32) & 0xFFFF, 0x8888888888888888);
+            //     *result_u64.get_unchecked_mut(bit_idx + 3) =
+            //         _pdep_u64((pre1 >> 48) & 0xFFFF, 0x1111111111111111)
+            //             | _pdep_u64((pre2 >> 48) & 0xFFFF, 0x2222222222222222)
+            //             | _pdep_u64((pre3 >> 48) & 0xFFFF, 0x4444444444444444)
+            //             | _pdep_u64((pre4 >> 48) & 0xFFFF, 0x8888888888888888);
+            // }
+            let s1_res1 = b1.simd_eq(target1).to_simd();
+            let s1_res2 = b2.simd_eq(target2).to_simd();
+            let s1_res3 = b3.simd_eq(target3).to_simd();
+            let s1_res4 = b4.simd_eq(target4).to_simd();
+
+            let (s2_res1, s2_res2): (u16x32, u16x32) =
+                unsafe { transmute(s1_res1.interleave(s1_res2)) };
+            let (s2_res3, s2_res4): (u16x32, u16x32) =
+                unsafe { transmute(s1_res3.interleave(s1_res4)) };
+
+            let (s3_res1, s3_res2): (u8x64, u8x64) =
+                unsafe { transmute(s2_res1.interleave(s2_res3)) };
+            let (s3_res3, s3_res4): (u8x64, u8x64) =
+                unsafe { transmute(s2_res2.interleave(s2_res4)) };
+
+            let bits1 = s3_res1.simd_eq(true_case);
+            let bits2 = s3_res2.simd_eq(true_case);
+            let bits3 = s3_res3.simd_eq(true_case);
+            let bits4 = s3_res4.simd_eq(true_case);
+
+            let bit_idx = i >> 4;
+            unsafe {
+                *result_u64.get_unchecked_mut(bit_idx) = bits1.to_bitmask();
+                *result_u64.get_unchecked_mut(bit_idx + 1) = bits2.to_bitmask();
+                *result_u64.get_unchecked_mut(bit_idx + 2) = bits3.to_bitmask();
+                *result_u64.get_unchecked_mut(bit_idx + 3) = bits4.to_bitmask();
+            }
+        }
+        result
+    }
+
+    #[inline(never)]
+    pub fn from_packed_u4<const EQ: bool>(array: &[u64; 2048], match_val: u8) -> Self {
+        let mut result = Self::new(0);
+        let result_u64: &mut [u64; 512] = unsafe { transmute(&mut result.data) };
+        let array_u8: &[u8; 16384] = unsafe { transmute(array) };
+
+        let target1 = u8x64::splat(match_val);
+        let target2 = u8x64::splat(match_val << 4);
+
+        let mask1 = u8x64::splat(0x0F);
+        let mask2 = u8x64::splat(0xF0);
+
+        for i in (0..16384).step_by(64) {
+            let block = u8x64::from_slice(&array_u8[i..]);
+            let a1 = block & mask1;
+            let a2 = block & mask2;
+
+            let b1 = a1.simd_eq(target1).to_simd();
+            let b2 = a2.simd_eq(target2).to_simd();
+
+            let (c1, c2) = b1.interleave(b2);
+
+            let case: i8 = if EQ { -1 } else { 0 };
+            let true_case = i8x64::splat(case);
+
+            let bits1 = c1.simd_eq(true_case);
+            let bits2 = c2.simd_eq(true_case);
+            // println!("c1: {:?}", c1);
+            // println!("c2: {:?}", c2);
+
+            let bit_idx = i >> 5;
+            // println!("index: {bit_idx}");
+            unsafe {
+                *result_u64.get_unchecked_mut(bit_idx) = bits1.to_bitmask();
+                *result_u64.get_unchecked_mut(bit_idx + 1) = bits2.to_bitmask();
+            }
+        }
+        result
+    }
+
+    #[inline(never)]
+    pub fn from_packed_u8<const EQ: bool>(array: &[u64; 4096], match_val: u8) -> Self {
+        let mut result = Self::new(0);
+        let result_u64: &mut [u64; 512] = unsafe { transmute(&mut result.data) };
+        let array_u8: &[u8; 32768] = unsafe { transmute(array) };
+
+        let target = u8x64::splat(match_val);
+        for i in (0..32768).step_by(64) {
+            let block = u8x64::from_slice(&array_u8[i..]);
+            let bits = if EQ {
+                block.simd_eq(target).to_bitmask()
+            } else {
+                block.simd_ne(target).to_bitmask()
+            };
+
+            let bit_idx = i >> 6;
+            unsafe { *result_u64.get_unchecked_mut(bit_idx) = bits };
+        }
+        result
+    }
+
+    #[inline(never)]
+    pub fn from_packed_u16<const EQ: bool>(array: &[u64; 8192], match_val: u16) -> Self {
+        let mut result = Self::new(0);
+        let array_u16: &[u16; 32768] = unsafe { transmute(array) };
+
+        let target = u16x32::splat(match_val);
+        for i in (0..32768).step_by(32) {
+            let block = u16x32::from_slice(&array_u16[i..]);
+            let bits = if EQ {
+                block.simd_eq(target).to_bitmask()
+            } else {
+                block.simd_ne(target).to_bitmask()
+            };
+
+            let bit_idx = i >> 5;
+            unsafe { *result.data.get_unchecked_mut(bit_idx) = bits as u32 };
+        }
+        result
+    }
+
     pub fn as_array(self) -> [u32; 1024] {
         self.data
     }
@@ -102,6 +282,7 @@ impl Bitfield {
     /// Transposes all 1024 elements as a 32x32 matrix.
     pub fn outer_transpose(&mut self) {
         for y in 0..8 {
+            // Handle middle block case.
             let i = y * 128 + y * 4;
             let block = self.load_4x4_block(i);
             let tblock = Self::transpose_4x4_block(block);
