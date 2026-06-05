@@ -1,6 +1,6 @@
 use std::mem::transmute;
 
-use cubic_bitfield::Bitfield;
+use cubic_bitfields::Bitfield;
 
 #[test]
 fn from_packed_u1_test() {
@@ -9,7 +9,7 @@ fn from_packed_u1_test() {
         array[i] = (i as u64).wrapping_mul(21312312313242);
     }
     let bitfield = Bitfield::from_packed_u1::<true>(&array);
-    let slice_u32: [u32; 1024] = bitfield.as_array();
+    let slice_u32: [u32; 1024] = bitfield.to_array();
     let slice: &[u8; 4096] = unsafe { transmute(&slice_u32) };
     let array_u8: &[u8; 4096] = unsafe { transmute(&array) };
     for i in 0..4096 {
@@ -24,7 +24,7 @@ fn from_packed_u1_false_test() {
         array[i] = (i as u64).wrapping_mul(21312312313242);
     }
     let bitfield = Bitfield::from_packed_u1::<false>(&array);
-    let slice_u32: [u32; 1024] = bitfield.as_array();
+    let slice_u32: [u32; 1024] = bitfield.to_array();
     let slice: &[u8; 4096] = unsafe { transmute(&slice_u32) };
     let array_u8: &[u8; 4096] = unsafe { transmute(&array) };
     for i in 0..4096 {
@@ -44,7 +44,7 @@ fn from_packed_u2_test() {
 
     for target in 0u8..4 {
         let bitfield = Bitfield::from_packed_u2::<true>(&array, target);
-        let slice_u32: [u32; 1024] = bitfield.as_array();
+        let slice_u32: [u32; 1024] = bitfield.to_array();
         let slice: &[u8; 4096] = unsafe { transmute(&slice_u32) };
         for i in 0..8192usize {
             let byte = array_u8[i];
@@ -91,7 +91,7 @@ fn from_packed_u2_false_test() {
 
     for target in 0u8..4 {
         let bitfield = Bitfield::from_packed_u2::<false>(&array, target);
-        let slice_u32: [u32; 1024] = bitfield.as_array();
+        let slice_u32: [u32; 1024] = bitfield.to_array();
         let slice: &[u8; 4096] = unsafe { transmute(&slice_u32) };
         for i in 0..8192usize {
             let byte = array_u8[i];
@@ -137,7 +137,7 @@ fn from_packed_u4_test() {
 
     for target in [0u8, 3, 7, 11, 15] {
         let bitfield = Bitfield::from_packed_u4::<true>(&array, target);
-        let slice_u32: [u32; 1024] = bitfield.as_array();
+        let slice_u32: [u32; 1024] = bitfield.to_array();
         let slice: &[u8; 4096] = unsafe { transmute(&slice_u32) };
         for i in 0..16384usize {
             let byte = array_u8[i];
@@ -171,7 +171,7 @@ fn from_packed_u4_false_test() {
 
     for target in [0u8, 3, 7, 11, 15] {
         let bitfield = Bitfield::from_packed_u4::<false>(&array, target);
-        let slice_u32: [u32; 1024] = bitfield.as_array();
+        let slice_u32: [u32; 1024] = bitfield.to_array();
         let slice: &[u8; 4096] = unsafe { transmute(&slice_u32) };
         for i in 0..16384usize {
             let byte = array_u8[i];
@@ -206,7 +206,7 @@ fn from_packed_u8_test() {
 
     for target in [0u8, 42, 127, 200, 255] {
         let bitfield = Bitfield::from_packed_u8::<true>(&array, target);
-        let slice_u32: [u32; 1024] = bitfield.as_array();
+        let slice_u32: [u32; 1024] = bitfield.to_array();
         let slice: &[u8; 4096] = unsafe { transmute(&slice_u32) };
         for i in 0..32768usize {
             let expected = array_u8[i] == target;
@@ -229,7 +229,7 @@ fn from_packed_u8_false_test() {
 
     for target in [0u8, 42, 127, 200, 255] {
         let bitfield = Bitfield::from_packed_u8::<false>(&array, target);
-        let slice_u32: [u32; 1024] = bitfield.as_array();
+        let slice_u32: [u32; 1024] = bitfield.to_array();
         let slice: &[u8; 4096] = unsafe { transmute(&slice_u32) };
         for i in 0..32768usize {
             let expected = array_u8[i] != target;
@@ -252,7 +252,7 @@ fn from_packed_u16_test() {
 
     for target in [0u16, 7, 63, 255, 511] {
         let bitfield = Bitfield::from_packed_u16::<true>(&array, target);
-        let slice_u32: [u32; 1024] = bitfield.as_array();
+        let slice_u32: [u32; 1024] = bitfield.to_array();
         let slice: &[u8; 4096] = unsafe { transmute(&slice_u32) };
         for i in 0..32768usize {
             let expected = array_u16[i] == target;
@@ -275,7 +275,7 @@ fn from_packed_u16_false_test() {
 
     for target in [0u16, 7, 63, 255, 511] {
         let bitfield = Bitfield::from_packed_u16::<false>(&array, target);
-        let slice_u32: [u32; 1024] = bitfield.as_array();
+        let slice_u32: [u32; 1024] = bitfield.to_array();
         let slice: &[u8; 4096] = unsafe { transmute(&slice_u32) };
         for i in 0..32768usize {
             let expected = array_u16[i] != target;

@@ -65,6 +65,44 @@ impl BitXorAssign for Bitfield {
     }
 }
 
+impl Shl<usize> for Bitfield {
+    type Output = Self;
+    fn shl(self, rhs: usize) -> Self::Output {
+        let mut new_bitfield = self.clone();
+        for i in 0..1024 {
+            new_bitfield.data[i] << rhs;
+        }
+        new_bitfield
+    }
+}
+
+impl Shr<usize> for Bitfield {
+    type Output = Self;
+    fn shr(self, rhs: usize) -> Self::Output {
+        let mut new_bitfield = self.clone();
+        for i in 0..1024 {
+            new_bitfield.data[i] >> rhs;
+        }
+        new_bitfield
+    }
+}
+
+impl ShlAssign<usize> for Bitfield {
+    fn shl_assign(&mut self, rhs: usize) {
+        for i in 0..1024 {
+            self.data[i] << rhs;
+        }
+    }
+}
+
+impl ShrAssign<usize> for Bitfield {
+    fn shr_assign(&mut self, rhs: usize) {
+        for i in 0..1024 {
+            self.data[i] >> rhs;
+        }
+    }
+}
+
 impl Bitfield {
     pub fn new(val: u32) -> Self {
         Self {
@@ -84,7 +122,6 @@ impl Bitfield {
         }
     }
 
-    #[inline(never)]
     pub fn from_packed_u2<const EQ: bool>(array: &[u64; 1024], match_val: u8) -> Self {
         let mut result = Self::new(0);
         let result_u64: &mut [u64; 512] = unsafe { transmute(&mut result.data) };
@@ -170,7 +207,6 @@ impl Bitfield {
         result
     }
 
-    #[inline(never)]
     pub fn from_packed_u4<const EQ: bool>(array: &[u64; 2048], match_val: u8) -> Self {
         let mut result = Self::new(0);
         let result_u64: &mut [u64; 512] = unsafe { transmute(&mut result.data) };
@@ -210,7 +246,6 @@ impl Bitfield {
         result
     }
 
-    #[inline(never)]
     pub fn from_packed_u8<const EQ: bool>(array: &[u64; 4096], match_val: u8) -> Self {
         let mut result = Self::new(0);
         let result_u64: &mut [u64; 512] = unsafe { transmute(&mut result.data) };
@@ -231,7 +266,6 @@ impl Bitfield {
         result
     }
 
-    #[inline(never)]
     pub fn from_packed_u16<const EQ: bool>(array: &[u64; 8192], match_val: u16) -> Self {
         let mut result = Self::new(0);
         let array_u16: &[u16; 32768] = unsafe { transmute(array) };
@@ -251,8 +285,12 @@ impl Bitfield {
         result
     }
 
-    pub fn as_array(self) -> [u32; 1024] {
+    pub fn to_array(self) -> [u32; 1024] {
         self.data
+    }
+
+    pub fn as_array(&self) -> &[u32; 1024] {
+        &self.data
     }
 
     pub fn as_slice(&self) -> &[u32] {
@@ -342,7 +380,6 @@ impl Bitfield {
         )
     }
 
-    #[inline(never)]
     pub fn outer_transpose_scalar(&mut self) {
         for z in 0..32 {
             for y in (z + 1)..32 {

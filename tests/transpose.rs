@@ -1,4 +1,4 @@
-use cubic_bitfield::Bitfield;
+use cubic_bitfields::Bitfield;
 #[test]
 fn outer_transpose_test() {
     let mut field1 = Bitfield::new(0);
