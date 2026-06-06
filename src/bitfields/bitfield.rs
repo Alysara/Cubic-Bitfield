@@ -292,31 +292,33 @@ impl Bitfield {
     }
 
     pub fn as_slice(&self) -> &[u32] {
-        &self.data
+        &self.data.as_slice()
     }
 
     pub fn as_mut_slice(&mut self) -> &mut [u32] {
-        &mut self.data
+        self.data.as_mut_slice()
     }
 
-    pub fn cull_most_sig_bits(&mut self) {
+    pub fn cull_most_sig_bits(&mut self) -> &mut Self {
         for i in (0..1024).step_by(16) {
             let block = u32x16::from_slice(&self.data[i..i + 16]);
             let culled = block & !(block << u32x16::splat(1));
             culled.copy_to_slice(&mut self.data[i..i + 16]);
         }
+        self
     }
 
-    pub fn cull_least_sig_bits(&mut self) {
+    pub fn cull_least_sig_bits(&mut self) -> &mut Self {
         for i in (0..1024).step_by(16) {
             let block = u32x16::from_slice(&self.data[i..i + 16]);
             let culled = block & !(block >> u32x16::splat(1));
             culled.copy_to_slice(&mut self.data[i..i + 16]);
         }
+        self
     }
 
     /// Transposes all 1024 elements as a 32x32 matrix.
-    pub fn outer_transpose(&mut self) {
+    pub fn outer_transpose(&mut self) -> &mut Self {
         for y in 0..8 {
             // Handle middle block case.
             let i = y * 128 + y * 4;
@@ -339,6 +341,7 @@ impl Bitfield {
                 self.store_4x4_block(j, i_tblock);
             }
         }
+        self
     }
 
     #[inline(always)]
@@ -378,19 +381,20 @@ impl Bitfield {
         )
     }
 
-    pub fn outer_transpose_scalar(&mut self) {
+    pub fn outer_transpose_scalar(&mut self) -> &mut Self {
         for z in 0..32 {
             for y in (z + 1)..32 {
                 self.data.swap(z * 32 + y, y * 32 + z);
             }
         }
+        self
     }
 
     // --- Inner transpose algorithm obtained from:
     // --- https://github.com/Pnoenix/fast-bit-matrix-transpose
 
     /// Transposes each chunk of 32 elements as a 32x32 bit matrix.
-    pub fn inner_transpose(&mut self) {
+    pub fn inner_transpose(&mut self) -> &mut Self {
         for i in (0..1024).step_by(32) {
             // 16 bits
             let hi = u32x16::from_slice(&self.data[i..]);
@@ -448,9 +452,10 @@ impl Bitfield {
             final_hi.copy_to_slice(&mut self.data[i..]);
             final_lo.copy_to_slice(&mut self.data[i + 16..]);
         }
+        self
     }
 
-    pub fn inner_transpose_scalar(&mut self) {
+    pub fn inner_transpose_scalar(&mut self) -> &mut Self {
         for i in 0..32 {
             for j in 0..32 {
                 for k in (j + 1)..32 {
@@ -460,6 +465,7 @@ impl Bitfield {
                 }
             }
         }
+        self
     }
 
     pub fn andnot(&self, rhs: Self) -> Self {
@@ -470,10 +476,11 @@ impl Bitfield {
         new_bitfield
     }
 
-    pub fn andnot_assign(&mut self, rhs: Self) {
+    pub fn andnot_assign(&mut self, rhs: Self) -> &mut Self {
         for i in 0..1024 {
             self.data[i] &= !rhs.data[i];
         }
+        self
     }
 
     pub fn print_inner_slices(&self, range: Range<usize>) {
