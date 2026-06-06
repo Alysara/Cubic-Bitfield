@@ -468,7 +468,7 @@ impl Bitfield {
         self
     }
 
-    pub fn andnot(&self, rhs: Self) -> Self {
+    pub fn andnot(&self, rhs: &Self) -> Self {
         let mut new_bitfield = *self;
         for i in 0..1024 {
             new_bitfield.data[i] &= !rhs.data[i];
@@ -476,7 +476,7 @@ impl Bitfield {
         new_bitfield
     }
 
-    pub fn andnot_assign(&mut self, rhs: Self) -> &mut Self {
+    pub fn andnot_assign(&mut self, rhs: &Self) -> &mut Self {
         for i in 0..1024 {
             self.data[i] &= !rhs.data[i];
         }
