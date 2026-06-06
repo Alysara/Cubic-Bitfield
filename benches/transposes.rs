@@ -46,7 +46,7 @@ fn load_data_bench(c: &mut Criterion) {
 
     group.throughput(Throughput::Elements(32768));
     group.bench_function("u1_load", |b| {
-        b.iter(|| Bitfield::from_packed_u1::<true>(&array_u1));
+        b.iter(|| Bitfield::from_packed_u1::<true>(&array_u1, 0));
     });
     group.bench_function("u2_load", |b| {
         b.iter(|| Bitfield::from_packed_u2::<true>(&array_u2, 0));

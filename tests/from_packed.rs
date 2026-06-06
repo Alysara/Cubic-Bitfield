@@ -8,7 +8,7 @@ fn from_packed_u1_test() {
     for i in 0..512 {
         array[i] = (i as u64).wrapping_mul(21312312313242);
     }
-    let bitfield = Bitfield::from_packed_u1::<true>(&array);
+    let bitfield = Bitfield::from_packed_u1::<true>(&array, 1);
     let slice_u32: [u32; 1024] = bitfield.to_array();
     let slice: &[u8; 4096] = unsafe { transmute(&slice_u32) };
     let array_u8: &[u8; 4096] = unsafe { transmute(&array) };
@@ -23,7 +23,7 @@ fn from_packed_u1_false_test() {
     for i in 0..512 {
         array[i] = (i as u64).wrapping_mul(21312312313242);
     }
-    let bitfield = Bitfield::from_packed_u1::<false>(&array);
+    let bitfield = Bitfield::from_packed_u1::<false>(&array, 1);
     let slice_u32: [u32; 1024] = bitfield.to_array();
     let slice: &[u8; 4096] = unsafe { transmute(&slice_u32) };
     let array_u8: &[u8; 4096] = unsafe { transmute(&array) };

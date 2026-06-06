@@ -110,9 +110,9 @@ impl Bitfield {
         }
     }
 
-    pub fn from_packed_u1<const EQ: bool>(array: &[u64; 512]) -> Self {
+    pub fn from_packed_u1<const EQ: bool>(array: &[u64; 512], index: u8) -> Self {
         let array_u32: &[u32; 1024] = unsafe { transmute(array) };
-        if EQ {
+        if EQ ^ (index == 0) {
             Self {
                 data: array_u32.clone(),
             }
