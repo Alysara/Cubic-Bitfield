@@ -110,6 +110,12 @@ impl Bitfield {
         }
     }
 
+    pub fn fill(&mut self, val: u32) {
+        for i in 0..1024 {
+            self.data[i] = val;
+        }
+    }
+
     pub fn from_packed_u1<const EQ: bool>(array: &[u64; 512], index: u8) -> Self {
         let array_u32: &[u32; 1024] = unsafe { transmute(array) };
         if EQ ^ (index == 0) {
