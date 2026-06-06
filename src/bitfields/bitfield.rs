@@ -13,7 +13,7 @@ impl BitOr for Bitfield {
     fn bitor(self, rhs: Self) -> Self::Output {
         let mut result = Self::new(0);
         for i in 0..1024 {
-            result.data[i] = self.data[i] ^ rhs.data[i];
+            result.data[i] = self.data[i] | rhs.data[i];
         }
         result
     }
@@ -70,7 +70,7 @@ impl Shl<usize> for Bitfield {
     fn shl(self, rhs: usize) -> Self::Output {
         let mut new_bitfield = self.clone();
         for i in 0..1024 {
-            new_bitfield.data[i] << rhs;
+            new_bitfield.data[i] <<= rhs;
         }
         new_bitfield
     }
@@ -79,9 +79,9 @@ impl Shl<usize> for Bitfield {
 impl Shr<usize> for Bitfield {
     type Output = Self;
     fn shr(self, rhs: usize) -> Self::Output {
-        let mut new_bitfield = self.clone();
+        let mut new_bitfield = self;
         for i in 0..1024 {
-            new_bitfield.data[i] >> rhs;
+            new_bitfield.data[i] >>= rhs;
         }
         new_bitfield
     }
@@ -90,7 +90,7 @@ impl Shr<usize> for Bitfield {
 impl ShlAssign<usize> for Bitfield {
     fn shl_assign(&mut self, rhs: usize) {
         for i in 0..1024 {
-            self.data[i] << rhs;
+            self.data[i] <<= rhs;
         }
     }
 }
@@ -98,7 +98,7 @@ impl ShlAssign<usize> for Bitfield {
 impl ShrAssign<usize> for Bitfield {
     fn shr_assign(&mut self, rhs: usize) {
         for i in 0..1024 {
-            self.data[i] >> rhs;
+            self.data[i] >>= rhs;
         }
     }
 }
@@ -113,9 +113,7 @@ impl Bitfield {
     pub fn from_packed_u1<const EQ: bool>(array: &[u64; 512], index: u8) -> Self {
         let array_u32: &[u32; 1024] = unsafe { transmute(array) };
         if EQ ^ (index == 0) {
-            Self {
-                data: array_u32.clone(),
-            }
+            Self { data: *array_u32 }
         } else {
             let data: [u32; 1024] = std::array::from_fn(|i| !array_u32[i]);
             Self { data }
@@ -383,9 +381,7 @@ impl Bitfield {
     pub fn outer_transpose_scalar(&mut self) {
         for z in 0..32 {
             for y in (z + 1)..32 {
-                let tmp = self.data[z * 32 + y];
-                self.data[z * 32 + y] = self.data[y * 32 + z];
-                self.data[y * 32 + z] = tmp;
+                self.data.swap(z * 32 + y, y * 32 + z);
             }
         }
     }
