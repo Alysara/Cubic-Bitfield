@@ -1,7 +1,7 @@
 use std::hint::black_box;
 
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
-use cubic_bitfield::Bitfield;
+use cubic_bitfields::Bitfield;
 
 fn transpose_bench(c: &mut Criterion) {
     let mut group = c.benchmark_group("bitfield");
