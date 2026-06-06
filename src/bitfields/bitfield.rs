@@ -462,6 +462,20 @@ impl Bitfield {
         }
     }
 
+    pub fn andnot(&self, rhs: Self) -> Self {
+        let mut new_bitfield = *self;
+        for i in 0..1024 {
+            new_bitfield.data[i] &= !rhs.data[i];
+        }
+        new_bitfield
+    }
+
+    pub fn andnot_assign(&mut self, rhs: Self) {
+        for i in 0..1024 {
+            self.data[i] &= !rhs.data[i];
+        }
+    }
+
     pub fn print_inner_slices(&self, range: Range<usize>) {
         assert!(
             range.end <= 32,
