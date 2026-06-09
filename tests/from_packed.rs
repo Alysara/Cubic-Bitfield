@@ -1,287 +1,289 @@
 use std::mem::transmute;
 
-use cubic_bitfields::Bitfield;
+use cubic_bitfields::util::{gen_alternating_value, gen_rand_packed};
+use cubic_bitfields::*;
 
 #[test]
 fn from_packed_u1_test() {
-    let mut array: [u64; 512] = std::array::from_fn(|_| 0);
-    for i in 0..512 {
-        array[i] = (i as u64).wrapping_mul(21312312313242);
-    }
-    let bitfield = Bitfield::from_packed_u1::<true>(&array, 1);
-    let slice_u32: [u32; 1024] = bitfield.to_array();
-    let slice: &[u8; 4096] = unsafe { transmute(&slice_u32) };
-    let array_u8: &[u8; 4096] = unsafe { transmute(&array) };
-    for i in 0..4096 {
-        assert_eq!(slice[i], array_u8[i], "u1 true i={i}");
-    }
-}
-
-#[test]
-fn from_packed_u1_false_test() {
-    let mut array: [u64; 512] = std::array::from_fn(|_| 0);
-    for i in 0..512 {
-        array[i] = (i as u64).wrapping_mul(21312312313242);
-    }
-    let bitfield = Bitfield::from_packed_u1::<false>(&array, 1);
-    let slice_u32: [u32; 1024] = bitfield.to_array();
-    let slice: &[u8; 4096] = unsafe { transmute(&slice_u32) };
-    let array_u8: &[u8; 4096] = unsafe { transmute(&array) };
-    for i in 0..4096 {
-        assert_eq!(slice[i], !array_u8[i], "u1 false i={i}");
-    }
+    let array = gen_rand_packed::<512>();
+    let mut bitfield = Bitfield::new(0);
+    bitfield.load_packed_u1_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, true);
+    let array_32: [u32; 1024] = unsafe { transmute(array) };
+    assert_eq!(array_32, *bitfield.as_array());
 }
 
 #[test]
 fn from_packed_u2_test() {
-    let array_u8: [u8; 8192] = std::array::from_fn(|i| {
-        let v = (i % 4) as u8;
-        v | (v.wrapping_add(1) % 4 << 2)
-            | (v.wrapping_add(2) % 4 << 4)
-            | (v.wrapping_add(3) % 4 << 6)
-    });
-    let array: [u64; 1024] = unsafe { transmute(array_u8) };
+    let array = gen_rand_packed::<1024>();
+    let mut bitfield = Bitfield::new(0);
+    bitfield.load_packed_u2_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 0);
+    let b_array = bitfield.to_array_64();
 
-    for target in 0u8..4 {
-        let bitfield = Bitfield::from_packed_u2::<true>(&array, target);
-        let slice_u32: [u32; 1024] = bitfield.to_array();
-        let slice: &[u8; 4096] = unsafe { transmute(&slice_u32) };
-        for i in 0..8192usize {
-            let byte = array_u8[i];
-            let b0 = (byte & 0x03) == target;
-            let b1 = ((byte >> 2) & 0x03) == target;
-            let b2 = ((byte >> 4) & 0x03) == target;
-            let b3 = ((byte >> 6) & 0x03) == target;
-            let bit_idx = i * 4;
-            let out_byte = slice[bit_idx / 8];
-            let bit_off = bit_idx % 8;
-            assert_eq!(
-                (out_byte >> bit_off) & 1 == 1,
-                b0,
-                "u2 true i={i} target={target} b0"
-            );
-            assert_eq!(
-                (out_byte >> (bit_off + 1)) & 1 == 1,
-                b1,
-                "u2 true i={i} target={target} b1"
-            );
-            assert_eq!(
-                (out_byte >> (bit_off + 2)) & 1 == 1,
-                b2,
-                "u2 true i={i} target={target} b2"
-            );
-            assert_eq!(
-                (out_byte >> (bit_off + 3)) & 1 == 1,
-                b3,
-                "u2 true i={i} target={target} b3"
-            );
-        }
-    }
-}
+    for i in 0..512 {
+        for bit in 0..64 {
+            let bitfield_truth = ((b_array[i] >> bit) & 1) == 1;
 
-#[test]
-fn from_packed_u2_false_test() {
-    let array_u8: [u8; 8192] = std::array::from_fn(|i| {
-        let v = (i % 4) as u8;
-        v | (v.wrapping_add(1) % 4 << 2)
-            | (v.wrapping_add(2) % 4 << 4)
-            | (v.wrapping_add(3) % 4 << 6)
-    });
-    let array: [u64; 1024] = unsafe { transmute(array_u8) };
-
-    for target in 0u8..4 {
-        let bitfield = Bitfield::from_packed_u2::<false>(&array, target);
-        let slice_u32: [u32; 1024] = bitfield.to_array();
-        let slice: &[u8; 4096] = unsafe { transmute(&slice_u32) };
-        for i in 0..8192usize {
-            let byte = array_u8[i];
-            let b0 = (byte & 0x03) != target;
-            let b1 = ((byte >> 2) & 0x03) != target;
-            let b2 = ((byte >> 4) & 0x03) != target;
-            let b3 = ((byte >> 6) & 0x03) != target;
-            let bit_idx = i * 4;
-            let out_byte = slice[bit_idx / 8];
-            let bit_off = bit_idx % 8;
-            assert_eq!(
-                (out_byte >> bit_off) & 1 == 1,
-                b0,
-                "u2 false i={i} target={target} b0"
-            );
-            assert_eq!(
-                (out_byte >> (bit_off + 1)) & 1 == 1,
-                b1,
-                "u2 false i={i} target={target} b1"
-            );
-            assert_eq!(
-                (out_byte >> (bit_off + 2)) & 1 == 1,
-                b2,
-                "u2 false i={i} target={target} b2"
-            );
-            assert_eq!(
-                (out_byte >> (bit_off + 3)) & 1 == 1,
-                b3,
-                "u2 false i={i} target={target} b3"
-            );
+            let src_idx = i * 2 + bit / 32;
+            let src_bit = (bit % 32) * 2;
+            let src_truth = ((array[src_idx] >> src_bit) & 0b11) == 0;
+            assert_eq!(bitfield_truth, src_truth);
         }
     }
 }
 
 #[test]
 fn from_packed_u4_test() {
-    let array_u8: [u8; 16384] = std::array::from_fn(|i| {
-        let lo = (i % 16) as u8;
-        let hi = ((i + 7) % 16) as u8;
-        lo | (hi << 4)
-    });
-    let array: [u64; 2048] = unsafe { transmute(array_u8) };
+    let array = gen_rand_packed::<2048>();
+    let mut bitfield = Bitfield::new(0);
+    bitfield.load_packed_u4_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 0);
+    let b_array = bitfield.to_array_64();
 
-    for target in [0u8, 3, 7, 11, 15] {
-        let bitfield = Bitfield::from_packed_u4::<true>(&array, target);
-        let slice_u32: [u32; 1024] = bitfield.to_array();
-        let slice: &[u8; 4096] = unsafe { transmute(&slice_u32) };
-        for i in 0..16384usize {
-            let byte = array_u8[i];
-            let b0 = (byte & 0x0F) == target;
-            let b1 = ((byte >> 4) & 0x0F) == target;
-            let bit_idx = i * 2;
-            let out_byte = slice[bit_idx / 8];
-            let bit_off = bit_idx % 8;
-            assert_eq!(
-                (out_byte >> bit_off) & 1 == 1,
-                b0,
-                "u4 true i={i} target={target} b0"
-            );
-            assert_eq!(
-                (out_byte >> (bit_off + 1)) & 1 == 1,
-                b1,
-                "u4 true i={i} target={target} b1"
-            );
-        }
-    }
-}
+    for i in 0..512 {
+        for bit in 0..64 {
+            let bitfield_truth = ((b_array[i] >> bit) & 1) == 1;
 
-#[test]
-fn from_packed_u4_false_test() {
-    let array_u8: [u8; 16384] = std::array::from_fn(|i| {
-        let lo = (i % 16) as u8;
-        let hi = ((i + 7) % 16) as u8;
-        lo | (hi << 4)
-    });
-    let array: [u64; 2048] = unsafe { transmute(array_u8) };
-
-    for target in [0u8, 3, 7, 11, 15] {
-        let bitfield = Bitfield::from_packed_u4::<false>(&array, target);
-        let slice_u32: [u32; 1024] = bitfield.to_array();
-        let slice: &[u8; 4096] = unsafe { transmute(&slice_u32) };
-        for i in 0..16384usize {
-            let byte = array_u8[i];
-            let b0 = (byte & 0x0F) != target;
-            let b1 = ((byte >> 4) & 0x0F) != target;
-            let bit_idx = i * 2;
-            let out_byte = slice[bit_idx / 8];
-            let bit_off = bit_idx % 8;
-            assert_eq!(
-                (out_byte >> bit_off) & 1 == 1,
-                b0,
-                "u4 false i={i} target={target} b0"
-            );
-            assert_eq!(
-                (out_byte >> (bit_off + 1)) & 1 == 1,
-                b1,
-                "u4 false i={i} target={target} b1"
-            );
+            let src_idx = i * 4 + bit / 16;
+            let src_bit = (bit % 16) * 4;
+            let src_truth = ((array[src_idx] >> src_bit) & 0xF) == 0;
+            assert_eq!(bitfield_truth, src_truth);
         }
     }
 }
 
 #[test]
 fn from_packed_u8_test() {
-    let array_u8: [u8; 32768] = std::array::from_fn(|i| {
-        ((i as u64)
-            .wrapping_mul(6364136223846793005)
-            .wrapping_add(1442695040888963407)
-            % 256) as u8
-    });
-    let array: [u64; 4096] = unsafe { transmute(array_u8) };
+    let array: [u64; 4096] = std::array::from_fn(|_| 0xFFFF0000FFFF0000);
+    let mut bitfield = Bitfield::new(0);
+    bitfield.load_packed_u8_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 0);
+    let b_array = bitfield.to_array_64();
 
-    for target in [0u8, 42, 127, 200, 255] {
-        let bitfield = Bitfield::from_packed_u8::<true>(&array, target);
-        let slice_u32: [u32; 1024] = bitfield.to_array();
-        let slice: &[u8; 4096] = unsafe { transmute(&slice_u32) };
-        for i in 0..32768usize {
-            let expected = array_u8[i] == target;
-            let out_byte = slice[i / 8];
-            let actual = (out_byte >> (i % 8)) & 1 == 1;
-            assert_eq!(actual, expected, "u8 true i={i} target={target}");
-        }
-    }
-}
+    for i in 0..512 {
+        for bit in 0..64 {
+            let bitfield_truth = ((b_array[i] >> bit) & 1) == 1;
 
-#[test]
-fn from_packed_u8_false_test() {
-    let array_u8: [u8; 32768] = std::array::from_fn(|i| {
-        ((i as u64)
-            .wrapping_mul(6364136223846793005)
-            .wrapping_add(1442695040888963407)
-            % 256) as u8
-    });
-    let array: [u64; 4096] = unsafe { transmute(array_u8) };
-
-    for target in [0u8, 42, 127, 200, 255] {
-        let bitfield = Bitfield::from_packed_u8::<false>(&array, target);
-        let slice_u32: [u32; 1024] = bitfield.to_array();
-        let slice: &[u8; 4096] = unsafe { transmute(&slice_u32) };
-        for i in 0..32768usize {
-            let expected = array_u8[i] != target;
-            let out_byte = slice[i / 8];
-            let actual = (out_byte >> (i % 8)) & 1 == 1;
-            assert_eq!(actual, expected, "u8 false i={i} target={target}");
+            let src_idx = i * 8 + bit / 8;
+            let src_bit = (bit % 8) * 8;
+            let src_truth = ((array[src_idx] >> src_bit) & 0xFF) == 0;
+            assert_eq!(bitfield_truth, src_truth);
         }
     }
 }
 
 #[test]
 fn from_packed_u16_test() {
-    let array_u16: [u16; 32768] = std::array::from_fn(|i| {
-        ((i as u64)
-            .wrapping_mul(6364136223846793005)
-            .wrapping_add(1442695040888963407)
-            % 512) as u16
-    });
-    let array: [u64; 8192] = unsafe { transmute(array_u16) };
+    let array: [u64; 8192] = std::array::from_fn(|_| 0xFFFF0000FFFF0000);
+    let mut bitfield = Bitfield::new(0);
+    bitfield.load_packed_u16_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 0);
+    let b_array = bitfield.to_array_64();
 
-    for target in [0u16, 7, 63, 255, 511] {
-        let bitfield = Bitfield::from_packed_u16::<true>(&array, target);
-        let slice_u32: [u32; 1024] = bitfield.to_array();
-        let slice: &[u8; 4096] = unsafe { transmute(&slice_u32) };
-        for i in 0..32768usize {
-            let expected = array_u16[i] == target;
-            let out_byte = slice[i / 8];
-            let actual = (out_byte >> (i % 8)) & 1 == 1;
-            assert_eq!(actual, expected, "u16 true i={i} target={target}");
+    for i in 0..512 {
+        for bit in 0..64 {
+            let bitfield_truth = ((b_array[i] >> bit) & 1) == 1;
+
+            let src_idx = i * 16 + bit / 4;
+            let src_bit = (bit % 4) * 16;
+            let src_truth = ((array[src_idx] >> src_bit) & 0xFFFF) == 0;
+            assert_eq!(bitfield_truth, src_truth);
         }
     }
 }
 
 #[test]
-fn from_packed_u16_false_test() {
-    let array_u16: [u16; 32768] = std::array::from_fn(|i| {
-        ((i as u64)
-            .wrapping_mul(6364136223846793005)
-            .wrapping_add(1442695040888963407)
-            % 512) as u16
-    });
-    let array: [u64; 8192] = unsafe { transmute(array_u16) };
+fn from_yz_packed_u1_test() {
+    let array = gen_rand_packed::<512>();
 
-    for target in [0u16, 7, 63, 255, 511] {
-        let bitfield = Bitfield::from_packed_u16::<false>(&array, target);
-        let slice_u32: [u32; 1024] = bitfield.to_array();
-        let slice: &[u8; 4096] = unsafe { transmute(&slice_u32) };
-        for i in 0..32768usize {
-            let expected = array_u16[i] != target;
-            let out_byte = slice[i / 8];
-            let actual = (out_byte >> (i % 8)) & 1 == 1;
-            assert_eq!(actual, expected, "u16 false i={i} target={target}");
-        }
-    }
+    let mut bitfield1 = Bitfield::new(0);
+    let mut bitfield2 = Bitfield::new(0);
+
+    bitfield1.load_packed_u1_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, false);
+    bitfield2.load_yz_packed_u1_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 31, false);
+    *bitfield1.outer_transpose().inner_transpose() >>= 31;
+    *bitfield2.outer_transpose().inner_transpose() >>= 31;
+
+    bitfield1.load_packed_u1_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, false);
+    bitfield2.load_yz_packed_u1_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 0, false);
+    *bitfield1.outer_transpose().inner_transpose() <<= 31;
+    *bitfield2.outer_transpose().inner_transpose() <<= 31;
+
+    assert_eq!(bitfield1, bitfield2);
+}
+
+#[test]
+fn from_yz_packed_u2_test() {
+    let array = gen_rand_packed::<1024>();
+
+    let mut bitfield1 = Bitfield::new(0);
+    let mut bitfield2 = Bitfield::new(0);
+
+    bitfield1.load_packed_u2_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 0);
+    bitfield2.load_yz_packed_u2_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 31, 0);
+    *bitfield1.outer_transpose().inner_transpose() >>= 31;
+    *bitfield2.outer_transpose().inner_transpose() >>= 31;
+
+    bitfield1.load_packed_u2_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 0);
+    bitfield2.load_yz_packed_u2_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 0, 0);
+    *bitfield1.outer_transpose().inner_transpose() <<= 31;
+    *bitfield2.outer_transpose().inner_transpose() <<= 31;
+
+    assert_eq!(bitfield1, bitfield2);
+}
+
+#[test]
+fn from_yz_packed_u4_test() {
+    let array = gen_rand_packed::<2048>();
+
+    let mut bitfield1 = Bitfield::new(0);
+    let mut bitfield2 = Bitfield::new(0);
+
+    bitfield1.load_packed_u4_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 0);
+    bitfield2.load_yz_packed_u4_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 31, 0);
+    *bitfield1.outer_transpose().inner_transpose() >>= 31;
+    *bitfield2.outer_transpose().inner_transpose() >>= 31;
+
+    bitfield1.load_packed_u4_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 0);
+    bitfield2.load_yz_packed_u4_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 0, 0);
+    *bitfield1.outer_transpose().inner_transpose() <<= 31;
+    *bitfield2.outer_transpose().inner_transpose() <<= 31;
+
+    assert_eq!(bitfield1, bitfield2);
+}
+
+#[test]
+fn from_yz_packed_u8_test() {
+    let array: [u64; 4096] = std::array::from_fn(|_| 0xFFFF0000FFFF0000);
+
+    let mut bitfield1 = Bitfield::new(0);
+    let mut bitfield2 = Bitfield::new(0);
+
+    bitfield1.load_packed_u8_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 0);
+    bitfield2.load_yz_packed_u8_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 31, 0);
+    *bitfield1.outer_transpose().inner_transpose() >>= 31;
+    *bitfield2.outer_transpose().inner_transpose() >>= 31;
+
+    bitfield1.load_packed_u8_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 0);
+    bitfield2.load_yz_packed_u8_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 0, 0);
+    *bitfield1.outer_transpose().inner_transpose() <<= 31;
+    *bitfield2.outer_transpose().inner_transpose() <<= 31;
+
+    assert_eq!(bitfield1, bitfield2);
+}
+
+#[test]
+fn from_yz_packed_u16_test() {
+    let array: [u64; 8192] = std::array::from_fn(|_| 0xFFFF0000FFFF0000);
+
+    let mut bitfield1 = Bitfield::new(0);
+    let mut bitfield2 = Bitfield::new(0);
+
+    bitfield1.load_packed_u16_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 0);
+    bitfield2.load_yz_packed_u16_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 31, 0);
+    *bitfield1.outer_transpose().inner_transpose() >>= 31;
+    *bitfield2.outer_transpose().inner_transpose() >>= 31;
+
+    bitfield1.load_packed_u16_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 0);
+    bitfield2.load_yz_packed_u16_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 0, 0);
+    *bitfield1.outer_transpose().inner_transpose() <<= 31;
+    *bitfield2.outer_transpose().inner_transpose() <<= 31;
+
+    assert_eq!(bitfield1, bitfield2);
+}
+
+#[test]
+fn from_xz_packed_u1_test() {
+    let array = gen_rand_packed::<512>();
+
+    let mut bitfield1 = Bitfield::new(0);
+    let mut bitfield2 = Bitfield::new(0);
+
+    bitfield1.load_packed_u1_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, false);
+    bitfield2.load_xz_packed_u1_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 31, false);
+    *bitfield1.inner_transpose() >>= 31;
+    *bitfield2.inner_transpose() >>= 31;
+
+    bitfield1.load_packed_u1_into::<SET_FLAG_XOR, CMP_FLAG_EQ>(&array, false);
+    bitfield2.load_xz_packed_u1_into::<SET_FLAG_XOR, CMP_FLAG_EQ>(&array, 0, false);
+    *bitfield1.inner_transpose() <<= 31;
+    *bitfield2.inner_transpose() <<= 31;
+
+    assert_eq!(bitfield1, bitfield2);
+}
+
+#[test]
+fn from_xz_packed_u2_test() {
+    let array = gen_rand_packed::<1024>();
+
+    let mut bitfield1 = Bitfield::new(0);
+    let mut bitfield2 = Bitfield::new(0);
+
+    bitfield1.load_packed_u2_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 0);
+    bitfield2.load_xz_packed_u2_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 31, 0);
+    *bitfield1.inner_transpose() >>= 31;
+    *bitfield2.inner_transpose() >>= 31;
+
+    bitfield1.load_packed_u2_into::<SET_FLAG_XOR, CMP_FLAG_EQ>(&array, 0);
+    bitfield2.load_xz_packed_u2_into::<SET_FLAG_XOR, CMP_FLAG_EQ>(&array, 0, 0);
+    *bitfield1.inner_transpose() <<= 31;
+    *bitfield2.inner_transpose() <<= 31;
+
+    assert_eq!(bitfield1, bitfield2);
+}
+
+#[test]
+fn from_xz_packed_u4_test() {
+    let array = gen_rand_packed::<2048>();
+
+    let mut bitfield1 = Bitfield::new(0);
+    let mut bitfield2 = Bitfield::new(0);
+
+    bitfield1.load_packed_u4_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 0);
+    bitfield2.load_xz_packed_u4_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 31, 0);
+    *bitfield1.inner_transpose() >>= 31;
+    *bitfield2.inner_transpose() >>= 31;
+
+    bitfield1.load_packed_u4_into::<SET_FLAG_XOR, CMP_FLAG_EQ>(&array, 0);
+    bitfield2.load_xz_packed_u4_into::<SET_FLAG_XOR, CMP_FLAG_EQ>(&array, 0, 0);
+    *bitfield1.inner_transpose() <<= 31;
+    *bitfield2.inner_transpose() <<= 31;
+
+    assert_eq!(bitfield1, bitfield2);
+}
+
+#[test]
+fn from_xz_packed_u8_test() {
+    let array = gen_alternating_value(0xFFFF0000FFFF0000, 0x0000FFFF0000FFFF);
+
+    let mut bitfield1 = Bitfield::new(0);
+    let mut bitfield2 = Bitfield::new(0);
+
+    bitfield1.load_packed_u8_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 0);
+    bitfield2.load_xz_packed_u8_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 31, 0);
+    *bitfield1.inner_transpose() >>= 31;
+    *bitfield2.inner_transpose() >>= 31;
+
+    bitfield1.load_packed_u8_into::<SET_FLAG_XOR, CMP_FLAG_EQ>(&array, 0);
+    bitfield2.load_xz_packed_u8_into::<SET_FLAG_XOR, CMP_FLAG_EQ>(&array, 0, 0);
+    *bitfield1.inner_transpose() <<= 31;
+    *bitfield2.inner_transpose() <<= 31;
+
+    assert_eq!(bitfield1, bitfield2);
+}
+
+#[test]
+fn from_xz_packed_u16_test() {
+    let array = gen_alternating_value(0xFFFF0000FFFF0000, 0x0000FFFF0000FFFF);
+
+    let mut bitfield1 = Bitfield::new(0);
+    let mut bitfield2 = Bitfield::new(0);
+
+    bitfield1.load_packed_u16_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 0);
+    bitfield2.load_xz_packed_u16_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array, 31, 0);
+    *bitfield1.inner_transpose() >>= 31;
+    *bitfield2.inner_transpose() >>= 31;
+
+    bitfield1.load_packed_u16_into::<SET_FLAG_XOR, CMP_FLAG_EQ>(&array, 0);
+    bitfield2.load_xz_packed_u16_into::<SET_FLAG_XOR, CMP_FLAG_EQ>(&array, 0, 0);
+    *bitfield1.inner_transpose() <<= 31;
+    *bitfield2.inner_transpose() <<= 31;
+
+    assert_eq!(bitfield1, bitfield2);
 }

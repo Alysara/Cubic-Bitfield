@@ -1,7 +1,7 @@
 use std::hint::black_box;
 
 use criterion::{Criterion, Throughput, criterion_group, criterion_main};
-use cubic_bitfields::Bitfield;
+use cubic_bitfields::*;
 
 fn transpose_bench(c: &mut Criterion) {
     let mut group = c.benchmark_group("bitfield");
@@ -44,21 +44,99 @@ fn load_data_bench(c: &mut Criterion) {
     black_box(array_u8);
     black_box(array_u16);
 
+    let mut bitfield = Bitfield::new(0);
     group.throughput(Throughput::Elements(32768));
     group.bench_function("u1_load", |b| {
-        b.iter(|| Bitfield::from_packed_u1::<true>(&array_u1, 0));
+        b.iter(|| {
+            bitfield.load_packed_u1_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u1, false);
+            black_box(&bitfield);
+        });
     });
     group.bench_function("u2_load", |b| {
-        b.iter(|| Bitfield::from_packed_u2::<true>(&array_u2, 0));
+        b.iter(|| {
+            bitfield.load_packed_u2_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u2, 0);
+            black_box(&bitfield);
+        });
     });
     group.bench_function("u4_load", |b| {
-        b.iter(|| Bitfield::from_packed_u4::<true>(&array_u4, 0));
+        b.iter(|| {
+            bitfield.load_packed_u4_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u4, 0);
+            black_box(&bitfield);
+        });
     });
     group.bench_function("u8_load", |b| {
-        b.iter(|| Bitfield::from_packed_u8::<true>(&array_u8, 0));
+        b.iter(|| {
+            bitfield.load_packed_u8_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u8, 0);
+            black_box(&bitfield);
+        });
     });
     group.bench_function("u16_load", |b| {
-        b.iter(|| Bitfield::from_packed_u16::<true>(&array_u16, 0));
+        b.iter(|| {
+            bitfield.load_packed_u16_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u16, 0);
+            black_box(&bitfield);
+        });
+    });
+
+    group.bench_function("u1_yz_load", |b| {
+        b.iter(|| {
+            bitfield.load_yz_packed_u1_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u1, 31, false);
+            black_box(&bitfield);
+        });
+    });
+    group.bench_function("u2_yz_load", |b| {
+        b.iter(|| {
+            bitfield.load_yz_packed_u2_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u2, 31, 0);
+            black_box(&bitfield);
+        });
+    });
+    group.bench_function("u4_yz_load", |b| {
+        b.iter(|| {
+            bitfield.load_yz_packed_u4_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u4, 31, 0);
+            black_box(&bitfield);
+        });
+    });
+    group.bench_function("u8_yz_load", |b| {
+        b.iter(|| {
+            bitfield.load_yz_packed_u8_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u8, 31, 0);
+            black_box(&bitfield);
+        });
+    });
+    group.bench_function("u16_yz_load", |b| {
+        b.iter(|| {
+            bitfield.load_yz_packed_u16_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u16, 31, 0);
+            black_box(&bitfield);
+        });
+    });
+
+    group.bench_function("u1_xz_load", |b| {
+        b.iter(|| {
+            bitfield.load_xz_packed_u1_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u1, 31, false);
+            black_box(&bitfield);
+        });
+    });
+    group.bench_function("u2_xz_load", |b| {
+        b.iter(|| {
+            bitfield.load_xz_packed_u2_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u2, 31, 0);
+            black_box(&bitfield);
+        });
+    });
+    group.bench_function("u4_xz_load", |b| {
+        b.iter(|| {
+            bitfield.load_xz_packed_u4_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u4, 31, 0);
+            black_box(&bitfield);
+        });
+    });
+    group.bench_function("u8_xz_load", |b| {
+        b.iter(|| {
+            bitfield.load_xz_packed_u8_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u8, 31, 0);
+            black_box(&bitfield);
+        });
+    });
+    group.bench_function("u16_xz_load", |b| {
+        b.iter(|| {
+            bitfield.load_xz_packed_u16_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u16, 31, 0);
+            black_box(&bitfield);
+        });
     });
 }
 

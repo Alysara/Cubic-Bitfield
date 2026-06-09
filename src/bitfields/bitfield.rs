@@ -1,6 +1,10 @@
+use std::iter::{Zip, zip};
 use std::mem::transmute;
 use std::ops::*;
 use std::simd::prelude::*;
+
+use crate::loader::*;
+use crate::transposes::Transposes;
 
 #[repr(align(64))]
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -68,7 +72,7 @@ impl BitXorAssign for Bitfield {
 impl Shl<usize> for Bitfield {
     type Output = Self;
     fn shl(self, rhs: usize) -> Self::Output {
-        let mut new_bitfield = self.clone();
+        let mut new_bitfield = self;
         for i in 0..1024 {
             new_bitfield.data[i] <<= rhs;
         }
@@ -116,310 +120,356 @@ impl Bitfield {
         }
     }
 
-    pub fn from_packed_u1<const EQ: bool>(array: &[u64; 512], index: u8) -> Self {
-        let array_u32: &[u32; 1024] = unsafe { transmute(array) };
-        if EQ ^ (index == 0) {
-            Self { data: *array_u32 }
-        } else {
-            let data: [u32; 1024] = std::array::from_fn(|i| !array_u32[i]);
-            Self { data }
+    fn set_u32<const SET: u8>(&mut self, index: usize, value: u32) {
+        apply_set::<SET, u32>(&mut self.data[index], value);
+    }
+
+    fn set_u64<const SET: u8>(&mut self, index: usize, value: u64) {
+        let bitfield_64: &mut [u64; 1024] = unsafe { transmute(&mut self.data) };
+        apply_set::<SET, u64>(&mut bitfield_64[index], value);
+    }
+
+    // Core load-into implementations.
+
+    // u1 loaders.
+    #[inline(always)]
+    fn load_packed_u1_inner<'a, const SET: u8, const CMP: u8, const MATCH: bool>(
+        &mut self,
+        src: impl Iterator<Item = (usize, &'a u32)>,
+    ) {
+        for (i, val) in src {
+            self.set_u32::<SET>(i, process_packed_u1::<CMP, MATCH>(val));
         }
     }
 
     #[inline(always)]
-    pub fn load_packed_u1_onto<const EQ: bool>(&mut self, array: &[u64; 512], index: u8) {
-        let array_bitfield: &Bitfield = unsafe { std::mem::transmute(array) };
-        if EQ ^ (index == 0) {
-            *self |= *array_bitfield;
-        } else {
-            for i in 0..1024 {
-                self.data[i] |= !array_bitfield.data[i];
-            }
-        }
-    }
-
-    pub fn from_packed_u2<const EQ: bool>(array: &[u64; 1024], match_val: u8) -> Self {
-        let mut result = Self::new(0);
-        result.load_packed_u2::<EQ>(array, match_val);
-        result
-    }
-
-    pub fn load_packed_u2<const EQ: bool>(&mut self, array: &[u64; 1024], match_val: u8) {
-        let result_u64: &mut [u64; 512] = unsafe { transmute(&mut self.data) };
-        let array_u8: &[u8; 8192] = unsafe { transmute(array) };
-
-        let target1 = u8x64::splat(match_val);
-        let target2 = u8x64::splat(match_val << 2);
-        let target3 = u8x64::splat(match_val << 4);
-        let target4 = u8x64::splat(match_val << 6);
-
-        let mask1 = u8x64::splat(0x03);
-        let mask2 = u8x64::splat(0x0C);
-        let mask3 = u8x64::splat(0x30);
-        let mask4 = u8x64::splat(0xC0);
-
-        let case = if EQ { u8::MAX } else { 0 };
-        let true_case = u8x64::splat(case);
-
-        for i in (0..8192).step_by(64) {
-            let block = u8x64::from_slice(&array_u8[i..]);
-            let b1 = block & mask1;
-            let b2 = block & mask2;
-            let b3 = block & mask3;
-            let b4 = block & mask4;
-
-            let s1_res1 = b1.simd_eq(target1).to_simd();
-            let s1_res2 = b2.simd_eq(target2).to_simd();
-            let s1_res3 = b3.simd_eq(target3).to_simd();
-            let s1_res4 = b4.simd_eq(target4).to_simd();
-
-            let (s2_res1, s2_res2): (u16x32, u16x32) =
-                unsafe { transmute(s1_res1.interleave(s1_res2)) };
-            let (s2_res3, s2_res4): (u16x32, u16x32) =
-                unsafe { transmute(s1_res3.interleave(s1_res4)) };
-
-            let (s3_res1, s3_res2): (u8x64, u8x64) =
-                unsafe { transmute(s2_res1.interleave(s2_res3)) };
-            let (s3_res3, s3_res4): (u8x64, u8x64) =
-                unsafe { transmute(s2_res2.interleave(s2_res4)) };
-
-            let bits1 = s3_res1.simd_eq(true_case);
-            let bits2 = s3_res2.simd_eq(true_case);
-            let bits3 = s3_res3.simd_eq(true_case);
-            let bits4 = s3_res4.simd_eq(true_case);
-
-            let bit_idx = i >> 4;
-            unsafe {
-                *result_u64.get_unchecked_mut(bit_idx) = bits1.to_bitmask();
-                *result_u64.get_unchecked_mut(bit_idx + 1) = bits2.to_bitmask();
-                *result_u64.get_unchecked_mut(bit_idx + 2) = bits3.to_bitmask();
-                *result_u64.get_unchecked_mut(bit_idx + 3) = bits4.to_bitmask();
-            }
+    pub fn load_packed_u1_into<const SET: u8, const CMP: u8>(
+        &mut self,
+        data: &[u64; 512],
+        match_val: bool,
+    ) {
+        let data_32: &[u32; 1024] = unsafe { transmute(data) };
+        let iter = data_32.iter().enumerate();
+        match match_val {
+            true => self.load_packed_u1_inner::<SET, CMP, true>(iter),
+            false => self.load_packed_u1_inner::<SET, CMP, false>(iter),
         }
     }
 
     #[inline(always)]
-    pub fn load_packed_u2_onto<const EQ: bool>(&mut self, array: &[u64; 1024], match_val: u8) {
-        let result_u64: &mut [u64; 512] = unsafe { transmute(&mut self.data) };
-        let array_u8: &[u8; 8192] = unsafe { transmute(array) };
-
-        let target1 = u8x64::splat(match_val);
-        let target2 = u8x64::splat(match_val << 2);
-        let target3 = u8x64::splat(match_val << 4);
-        let target4 = u8x64::splat(match_val << 6);
-
-        let mask1 = u8x64::splat(0x03);
-        let mask2 = u8x64::splat(0x0C);
-        let mask3 = u8x64::splat(0x30);
-        let mask4 = u8x64::splat(0xC0);
-
-        let case = if EQ { u8::MAX } else { 0 };
-        let true_case = u8x64::splat(case);
-
-        for i in (0..8192).step_by(64) {
-            let block = u8x64::from_slice(&array_u8[i..]);
-            let b1 = block & mask1;
-            let b2 = block & mask2;
-            let b3 = block & mask3;
-            let b4 = block & mask4;
-
-            let s1_res1 = b1.simd_eq(target1).to_simd();
-            let s1_res2 = b2.simd_eq(target2).to_simd();
-            let s1_res3 = b3.simd_eq(target3).to_simd();
-            let s1_res4 = b4.simd_eq(target4).to_simd();
-
-            let (s2_res1, s2_res2): (u16x32, u16x32) =
-                unsafe { transmute(s1_res1.interleave(s1_res2)) };
-            let (s2_res3, s2_res4): (u16x32, u16x32) =
-                unsafe { transmute(s1_res3.interleave(s1_res4)) };
-
-            let (s3_res1, s3_res2): (u8x64, u8x64) =
-                unsafe { transmute(s2_res1.interleave(s2_res3)) };
-            let (s3_res3, s3_res4): (u8x64, u8x64) =
-                unsafe { transmute(s2_res2.interleave(s2_res4)) };
-
-            let bits1 = s3_res1.simd_eq(true_case);
-            let bits2 = s3_res2.simd_eq(true_case);
-            let bits3 = s3_res3.simd_eq(true_case);
-            let bits4 = s3_res4.simd_eq(true_case);
-
-            let bit_idx = i >> 4;
-            unsafe {
-                *result_u64.get_unchecked_mut(bit_idx) |= bits1.to_bitmask();
-                *result_u64.get_unchecked_mut(bit_idx + 1) |= bits2.to_bitmask();
-                *result_u64.get_unchecked_mut(bit_idx + 2) |= bits3.to_bitmask();
-                *result_u64.get_unchecked_mut(bit_idx + 3) |= bits4.to_bitmask();
-            }
-        }
-    }
-
-    pub fn from_packed_u4<const EQ: bool>(array: &[u64; 2048], match_val: u8) -> Self {
-        let mut result = Self::new(0);
-        result.load_packed_u4::<EQ>(array, match_val);
-        result
-    }
-
-    pub fn load_packed_u4<const EQ: bool>(&mut self, array: &[u64; 2048], match_val: u8) {
-        let result_u64: &mut [u64; 512] = unsafe { transmute(&mut self.data) };
-        let array_u8: &[u8; 16384] = unsafe { transmute(array) };
-
-        let target1 = u8x64::splat(match_val);
-        let target2 = u8x64::splat(match_val << 4);
-
-        let mask1 = u8x64::splat(0x0F);
-        let mask2 = u8x64::splat(0xF0);
-
-        for i in (0..16384).step_by(64) {
-            let block = u8x64::from_slice(&array_u8[i..]);
-            let a1 = block & mask1;
-            let a2 = block & mask2;
-
-            let b1 = a1.simd_eq(target1).to_simd();
-            let b2 = a2.simd_eq(target2).to_simd();
-
-            let (c1, c2) = b1.interleave(b2);
-
-            let case: i8 = if EQ { -1 } else { 0 };
-            let true_case = i8x64::splat(case);
-
-            let bits1 = c1.simd_eq(true_case);
-            let bits2 = c2.simd_eq(true_case);
-            // println!("c1: {:?}", c1);
-            // println!("c2: {:?}", c2);
-
-            let bit_idx = i >> 5;
-            // println!("index: {bit_idx}");
-            unsafe {
-                *result_u64.get_unchecked_mut(bit_idx) = bits1.to_bitmask();
-                *result_u64.get_unchecked_mut(bit_idx + 1) = bits2.to_bitmask();
-            }
+    pub fn load_yz_packed_u1_into<const SET: u8, const CMP: u8>(
+        &mut self,
+        data: &[u64; 512],
+        x_slice: usize,
+        match_val: bool,
+    ) {
+        let data_32: &[u32; 1024] = unsafe { transmute(data) };
+        let iter = data_32.iter().enumerate().skip(x_slice * 32).take(32);
+        match match_val {
+            true => self.load_packed_u1_inner::<SET, CMP, true>(iter),
+            false => self.load_packed_u1_inner::<SET, CMP, false>(iter),
         }
     }
 
     #[inline(always)]
-    pub fn load_packed_u4_onto<const EQ: bool>(&mut self, array: &[u64; 2048], match_val: u8) {
-        let result_u64: &mut [u64; 512] = unsafe { transmute(&mut self.data) };
-        let array_u8: &[u8; 16384] = unsafe { transmute(array) };
-
-        let target1 = u8x64::splat(match_val);
-        let target2 = u8x64::splat(match_val << 4);
-
-        let mask1 = u8x64::splat(0x0F);
-        let mask2 = u8x64::splat(0xF0);
-
-        for i in (0..16384).step_by(64) {
-            let block = u8x64::from_slice(&array_u8[i..]);
-            let a1 = block & mask1;
-            let a2 = block & mask2;
-
-            let b1 = a1.simd_eq(target1).to_simd();
-            let b2 = a2.simd_eq(target2).to_simd();
-
-            let (c1, c2) = b1.interleave(b2);
-
-            let case: i8 = if EQ { -1 } else { 0 };
-            let true_case = i8x64::splat(case);
-
-            let bits1 = c1.simd_eq(true_case);
-            let bits2 = c2.simd_eq(true_case);
-            // println!("c1: {:?}", c1);
-            // println!("c2: {:?}", c2);
-
-            let bit_idx = i >> 5;
-            // println!("index: {bit_idx}");
-            unsafe {
-                *result_u64.get_unchecked_mut(bit_idx) |= bits1.to_bitmask();
-                *result_u64.get_unchecked_mut(bit_idx + 1) |= bits2.to_bitmask();
-            }
+    pub fn load_xz_packed_u1_into<const SET: u8, const CMP: u8>(
+        &mut self,
+        data: &[u64; 512],
+        y_slice: usize,
+        match_val: bool,
+    ) {
+        let data_32: &[u32; 1024] = unsafe { transmute(data) };
+        let iter = data_32.iter().enumerate().skip(y_slice).step_by(32);
+        match match_val {
+            true => self.load_packed_u1_inner::<SET, CMP, true>(iter),
+            false => self.load_packed_u1_inner::<SET, CMP, false>(iter),
         }
     }
 
-    pub fn from_packed_u8<const EQ: bool>(array: &[u64; 4096], match_val: u8) -> Self {
-        let mut result = Self::new(0);
-        result.load_packed_u8::<EQ>(array, match_val);
-        result
-    }
+    // u2 loaders.
+    #[inline(always)]
+    fn load_packed_u2_inner<const SET: u8, const CMP: u8, const MATCH: u8>(
+        &mut self,
+        data: &[u64; 1024],
+        src: impl Iterator<Item = usize>,
+    ) {
+        for i in src {
+            let (a, b, c, d) = process_packed_u2::<CMP, MATCH>(&data[i..]);
 
-    pub fn load_packed_u8<const EQ: bool>(&mut self, array: &[u64; 4096], match_val: u8) {
-        let result_u64: &mut [u64; 512] = unsafe { transmute(&mut self.data) };
-        let array_u8: &[u8; 32768] = unsafe { transmute(array) };
-
-        let target = u8x64::splat(match_val);
-        for i in (0..32768).step_by(64) {
-            let block = u8x64::from_slice(&array_u8[i..]);
-            let bits = if EQ {
-                block.simd_eq(target).to_bitmask()
-            } else {
-                block.simd_ne(target).to_bitmask()
-            };
-
-            let bit_idx = i >> 6;
-            unsafe { *result_u64.get_unchecked_mut(bit_idx) = bits };
+            let b_idx = i >> 1;
+            self.set_u64::<SET>(b_idx, a);
+            self.set_u64::<SET>(b_idx + 1, b);
+            self.set_u64::<SET>(b_idx + 2, c);
+            self.set_u64::<SET>(b_idx + 3, d);
         }
     }
 
     #[inline(always)]
-    pub fn load_packed_u8_onto<const EQ: bool>(&mut self, array: &[u64; 4096], match_val: u8) {
-        let result_u64: &mut [u64; 512] = unsafe { transmute(&mut self.data) };
-        let array_u8: &[u8; 32768] = unsafe { transmute(array) };
+    fn load_xz_packed_u2_inner<const SET: u8, const CMP: u8, const MATCH: u8>(
+        &mut self,
+        data: &[u64; 1024],
+        src: impl Iterator<Item = usize>,
+    ) {
+        for i in src {
+            #[rustfmt::skip]
+            let slice = [
+                data[i],       data[i + 32],  data[i + 64],  data[i + 96],
+                data[i + 128], data[i + 160], data[i + 192], data[i + 224],
+            ];
+            let (a, b, c, d) = process_packed_u2::<CMP, MATCH>(&slice);
 
-        let target = u8x64::splat(match_val);
-        for i in (0..32768).step_by(64) {
-            let block = u8x64::from_slice(&array_u8[i..]);
-            let bits = if EQ {
-                block.simd_eq(target).to_bitmask()
-            } else {
-                block.simd_ne(target).to_bitmask()
-            };
-
-            let bit_idx = i >> 6;
-            unsafe { *result_u64.get_unchecked_mut(bit_idx) |= bits };
-        }
-    }
-
-    pub fn from_packed_u16<const EQ: bool>(array: &[u64; 8192], match_val: u16) -> Self {
-        let mut result = Self::new(0);
-        result.load_packed_u16::<EQ>(array, match_val);
-        result
-    }
-
-    pub fn load_packed_u16<const EQ: bool>(&mut self, array: &[u64; 8192], match_val: u16) {
-        let array_u16: &[u16; 32768] = unsafe { transmute(array) };
-
-        let target = u16x32::splat(match_val);
-        for i in (0..32768).step_by(32) {
-            let block = u16x32::from_slice(&array_u16[i..]);
-            let bits = if EQ {
-                block.simd_eq(target).to_bitmask()
-            } else {
-                block.simd_ne(target).to_bitmask()
-            };
-
-            let bit_idx = i >> 5;
-            unsafe { *self.data.get_unchecked_mut(bit_idx) = bits as u32 };
+            self.set_u32::<SET>(i, a as u32);
+            self.set_u32::<SET>(i + 32, (a >> 32) as u32);
+            self.set_u32::<SET>(i + 64, b as u32);
+            self.set_u32::<SET>(i + 96, (b >> 32) as u32);
+            self.set_u32::<SET>(i + 128, c as u32);
+            self.set_u32::<SET>(i + 160, (c >> 32) as u32);
+            self.set_u32::<SET>(i + 192, d as u32);
+            self.set_u32::<SET>(i + 224, (d >> 32) as u32);
         }
     }
 
     #[inline(always)]
-    pub fn load_packed_u16_onto<const EQ: bool>(&mut self, array: &[u64; 8192], match_val: u16) {
-        let array_u16: &[u16; 32768] = unsafe { transmute(array) };
+    pub fn load_packed_u2_into<const SET: u8, const CMP: u8>(
+        &mut self,
+        data: &[u64; 1024],
+        match_val: u8,
+    ) {
+        let iter = (0..1024).step_by(8);
+        match match_val {
+            0 => self.load_packed_u2_inner::<SET, CMP, 0>(data, iter),
+            1 => self.load_packed_u2_inner::<SET, CMP, 1>(data, iter),
+            2 => self.load_packed_u2_inner::<SET, CMP, 2>(data, iter),
+            3 => self.load_packed_u2_inner::<SET, CMP, 3>(data, iter),
+            _ => unreachable!(),
+        };
+    }
 
-        let target = u16x32::splat(match_val);
-        for i in (0..32768).step_by(32) {
-            let block = u16x32::from_slice(&array_u16[i..]);
-            let bits = if EQ {
-                block.simd_eq(target).to_bitmask()
-            } else {
-                block.simd_ne(target).to_bitmask()
-            };
+    #[inline(always)]
+    pub fn load_yz_packed_u2_into<const SET: u8, const CMP: u8>(
+        &mut self,
+        data: &[u64; 1024],
+        x_slice: usize,
+        match_val: u8,
+    ) {
+        let iter = (0..1024).skip(x_slice * 32).step_by(8).take(4);
+        match match_val {
+            0 => self.load_packed_u2_inner::<SET, CMP, 0>(data, iter),
+            1 => self.load_packed_u2_inner::<SET, CMP, 1>(data, iter),
+            2 => self.load_packed_u2_inner::<SET, CMP, 2>(data, iter),
+            3 => self.load_packed_u2_inner::<SET, CMP, 3>(data, iter),
+            _ => unreachable!(),
+        };
+    }
 
-            let bit_idx = i >> 5;
-            unsafe { *self.data.get_unchecked_mut(bit_idx) |= bits as u32 };
+    #[inline(always)]
+    pub fn load_xz_packed_u2_into<const SET: u8, const CMP: u8>(
+        &mut self,
+        data: &[u64; 1024],
+        y_slice: usize,
+        match_val: u8,
+    ) {
+        let iter = (0..1024).skip(y_slice).step_by(256);
+        match match_val {
+            0 => self.load_xz_packed_u2_inner::<SET, CMP, 0>(data, iter),
+            1 => self.load_xz_packed_u2_inner::<SET, CMP, 1>(data, iter),
+            2 => self.load_xz_packed_u2_inner::<SET, CMP, 2>(data, iter),
+            3 => self.load_xz_packed_u2_inner::<SET, CMP, 3>(data, iter),
+            _ => unreachable!(),
+        };
+    }
+
+    // u4 loaders.
+    #[inline(always)]
+    fn load_packed_u4_inner<const SET: u8, const CMP: u8>(
+        &mut self,
+        data: &[u64; 2048],
+        src: impl Iterator<Item = usize>,
+        cmp_val: u8,
+    ) {
+        for i in src {
+            let (a, b) = process_packed_u4::<CMP>(&data[i..], cmp_val);
+
+            let b_idx = i >> 2;
+            self.set_u64::<SET>(b_idx, a);
+            self.set_u64::<SET>(b_idx + 1, b);
         }
+    }
+
+    #[inline(always)]
+    fn load_xz_packed_u4_inner<const SET: u8, const CMP: u8>(
+        &mut self,
+        data: &[u64; 2048],
+        src: impl Iterator<Item = usize>,
+        cmp_val: u8,
+    ) {
+        for i in src {
+            #[rustfmt::skip]
+            let slice = [
+                data[i], data[i + 1], data[i + 64], data[i + 65],
+                data[i + 128], data[i + 129], data[i + 192], data[i + 193]
+            ];
+            let (a, b) = process_packed_u4::<CMP>(&slice, cmp_val);
+
+            let bitfield_idx = i >> 1;
+            self.set_u32::<SET>(bitfield_idx, a as u32);
+            self.set_u32::<SET>(bitfield_idx + 32, (a >> 32) as u32);
+            self.set_u32::<SET>(bitfield_idx + 64, b as u32);
+            self.set_u32::<SET>(bitfield_idx + 96, (b >> 32) as u32);
+        }
+    }
+
+    #[inline(always)]
+    pub fn load_packed_u4_into<const SET: u8, const CMP: u8>(
+        &mut self,
+        data: &[u64; 2048],
+        match_val: u8,
+    ) {
+        let iter = (0..2048).step_by(8);
+        self.load_packed_u4_inner::<SET, CMP>(data, iter, match_val);
+    }
+
+    #[inline(always)]
+    pub fn load_yz_packed_u4_into<const SET: u8, const CMP: u8>(
+        &mut self,
+        data: &[u64; 2048],
+        x_slice: usize,
+        match_val: u8,
+    ) {
+        let iter = (0..2048).skip(x_slice * 64).step_by(8).take(8);
+        self.load_packed_u4_inner::<SET, CMP>(data, iter, match_val);
+    }
+
+    #[inline(always)]
+    pub fn load_xz_packed_u4_into<const SET: u8, const CMP: u8>(
+        &mut self,
+        data: &[u64; 2048],
+        y_slice: usize,
+        match_val: u8,
+    ) {
+        let iter = (0..2048).skip(y_slice * 2).step_by(256);
+        self.load_xz_packed_u4_inner::<SET, CMP>(data, iter, match_val);
+    }
+
+    // u8 loaders.
+    #[inline(always)]
+    fn load_packed_u8_inner<const SET: u8, const CMP: u8>(
+        &mut self,
+        data: &[u64; 4096],
+        src: impl Iterator<Item = usize>,
+        cmp_val: u8,
+    ) {
+        for i in src {
+            let bits = process_packed_u8::<CMP>(&data[i..], cmp_val);
+            self.set_u64::<SET>(i >> 3, bits);
+        }
+    }
+
+    #[inline(always)]
+    fn load_xz_packed_u8_inner<const SET: u8, const CMP: u8>(
+        &mut self,
+        data: &[u64; 4096],
+        src: impl Iterator<Item = usize>,
+        cmp_val: u8,
+    ) {
+        for i in src {
+            #[rustfmt::skip]
+            let slice = [
+                data[i], data[i + 1], data[i + 2], data[i + 3],
+                data[i + 128], data[i + 129], data[i + 130], data[i + 131],
+            ];
+            let bits = process_packed_u8::<CMP>(&slice, cmp_val);
+
+            let b_idx = i >> 2;
+            self.set_u32::<SET>(b_idx, bits as u32);
+            self.set_u32::<SET>(b_idx + 32, (bits >> 32) as u32);
+        }
+    }
+
+    #[inline(always)]
+    pub fn load_packed_u8_into<const SET: u8, const CMP: u8>(
+        &mut self,
+        data: &[u64; 4096],
+        match_val: u8,
+    ) {
+        let iter = (0..4096).step_by(8);
+        self.load_packed_u8_inner::<SET, CMP>(data, iter, match_val);
+    }
+
+    #[inline(always)]
+    pub fn load_yz_packed_u8_into<const SET: u8, const CMP: u8>(
+        &mut self,
+        data: &[u64; 4096],
+        x_slice: usize,
+        match_val: u8,
+    ) {
+        let iter = (0..4096).skip(x_slice * 128).step_by(8).take(16);
+        self.load_packed_u8_inner::<SET, CMP>(data, iter, match_val);
+    }
+
+    #[inline(always)]
+    pub fn load_xz_packed_u8_into<const SET: u8, const CMP: u8>(
+        &mut self,
+        data: &[u64; 4096],
+        y_slice: usize,
+        match_val: u8,
+    ) {
+        let iter = (0..4096).skip(y_slice * 4).step_by(256);
+        self.load_xz_packed_u8_inner::<SET, CMP>(data, iter, match_val);
+    }
+
+    // u16 loaders.
+    #[inline(always)]
+    fn load_packed_u16_inner<const SET: u8, const CMP: u8>(
+        &mut self,
+        data: &[u64; 8192],
+        src: impl Iterator<Item = usize>,
+        cmp_val: u16,
+    ) {
+        for i in src {
+            let bits = process_packed_u16::<CMP>(&data[i..], cmp_val);
+            self.set_u32::<SET>(i >> 3, bits);
+        }
+    }
+
+    #[inline(always)]
+    pub fn load_packed_u16_into<const SET: u8, const CMP: u8>(
+        &mut self,
+        data: &[u64; 8192],
+        match_val: u16,
+    ) {
+        let iter = (0..8192).step_by(8);
+        self.load_packed_u16_inner::<SET, CMP>(data, iter, match_val);
+    }
+
+    #[inline(always)]
+    pub fn load_yz_packed_u16_into<const SET: u8, const CMP: u8>(
+        &mut self,
+        data: &[u64; 8192],
+        x_slice: usize,
+        match_val: u16,
+    ) {
+        let iter = (0..8192).skip(x_slice * 256).step_by(8).take(32);
+        self.load_packed_u16_inner::<SET, CMP>(data, iter, match_val);
+    }
+
+    #[inline(always)]
+    pub fn load_xz_packed_u16_into<const SET: u8, const CMP: u8>(
+        &mut self,
+        data: &[u64; 8192],
+        y_slice: usize,
+        match_val: u16,
+    ) {
+        let iter = (0..8192).skip(y_slice * 8).step_by(256);
+        self.load_packed_u16_inner::<SET, CMP>(data, iter, match_val);
     }
 
     pub fn to_array(self) -> [u32; 1024] {
         self.data
+    }
+
+    pub fn to_array_64(self) -> [u64; 512] {
+        unsafe { transmute(self.data) }
     }
 
     pub fn as_array(&self) -> &[u32; 1024] {
@@ -427,7 +477,7 @@ impl Bitfield {
     }
 
     pub fn as_slice(&self) -> &[u32] {
-        &self.data.as_slice()
+        self.data.as_slice()
     }
 
     pub fn as_mut_slice(&mut self) -> &mut [u32] {
@@ -454,151 +504,26 @@ impl Bitfield {
 
     /// Transposes all 1024 elements as a 32x32 matrix.
     pub fn outer_transpose(&mut self) -> &mut Self {
-        for y in 0..8 {
-            // Handle middle block case.
-            let i = y * 128 + y * 4;
-            let block = self.load_4x4_block(i);
-            let tblock = Self::transpose_4x4_block(block);
-            self.store_4x4_block(i, tblock);
-
-            for z in (y + 1)..8 {
-                // Perform 4x4 block swaps.
-                let i = y * 128 + z * 4;
-                let j = y * 4 + z * 128;
-
-                let i_block = self.load_4x4_block(i);
-                let j_block = self.load_4x4_block(j);
-
-                let i_tblock = Self::transpose_4x4_block(i_block);
-                let j_tblock = Self::transpose_4x4_block(j_block);
-
-                self.store_4x4_block(i, j_tblock);
-                self.store_4x4_block(j, i_tblock);
-            }
-        }
+        Transposes::outer_transpose(&mut self.data);
         self
-    }
-
-    #[inline(always)]
-    fn load_4x4_block(&self, index: usize) -> (u32x4, u32x4, u32x4, u32x4) {
-        (
-            u32x4::from_slice(&self.data[index..]),
-            u32x4::from_slice(&self.data[index + 32..]),
-            u32x4::from_slice(&self.data[index + 64..]),
-            u32x4::from_slice(&self.data[index + 96..]),
-        )
-    }
-
-    #[inline(always)]
-    fn store_4x4_block(&mut self, index: usize, block: (u32x4, u32x4, u32x4, u32x4)) {
-        block.0.copy_to_slice(&mut self.data[index..]);
-        block.1.copy_to_slice(&mut self.data[index + 32..]);
-        block.2.copy_to_slice(&mut self.data[index + 64..]);
-        block.3.copy_to_slice(&mut self.data[index + 96..]);
-    }
-
-    fn transpose_4x4_block(block: (u32x4, u32x4, u32x4, u32x4)) -> (u32x4, u32x4, u32x4, u32x4) {
-        const SWIZZLE_64_LO: [usize; 4] = [0, 1, 4, 5];
-        const SWIZZLE_64_HI: [usize; 4] = [2, 3, 6, 7];
-        const SWIZZLE_32_LO: [usize; 4] = [0, 4, 2, 6];
-        const SWIZZLE_32_HI: [usize; 4] = [1, 5, 3, 7];
-
-        let t1 = simd_swizzle!(block.0, block.2, SWIZZLE_64_LO);
-        let t2 = simd_swizzle!(block.1, block.3, SWIZZLE_64_LO);
-        let t3 = simd_swizzle!(block.0, block.2, SWIZZLE_64_HI);
-        let t4 = simd_swizzle!(block.1, block.3, SWIZZLE_64_HI);
-
-        (
-            simd_swizzle!(t1, t2, SWIZZLE_32_LO),
-            simd_swizzle!(t1, t2, SWIZZLE_32_HI),
-            simd_swizzle!(t3, t4, SWIZZLE_32_LO),
-            simd_swizzle!(t3, t4, SWIZZLE_32_HI),
-        )
     }
 
     pub fn outer_transpose_scalar(&mut self) -> &mut Self {
-        for z in 0..32 {
-            for y in (z + 1)..32 {
-                self.data.swap(z * 32 + y, y * 32 + z);
-            }
-        }
+        Transposes::outer_transpose_scalar(&mut self.data);
         self
     }
-
-    // --- Inner transpose algorithm obtained from:
-    // --- https://github.com/Pnoenix/fast-bit-matrix-transpose
 
     /// Transposes each chunk of 32 elements as a 32x32 bit matrix.
     pub fn inner_transpose(&mut self) -> &mut Self {
         for i in (0..1024).step_by(32) {
-            // 16 bits
-            let hi = u32x16::from_slice(&self.data[i..]);
-            let lo = u32x16::from_slice(&self.data[i + 16..]);
-            const MASK_16: u32x16 = u32x16::splat(0x0000FFFF);
-            const SHIFT_16: u32x16 = u32x16::splat(16);
-            let hi16 = (hi & MASK_16) | lo << SHIFT_16;
-            let lo16 = (lo & !MASK_16) | hi >> SHIFT_16;
-
-            // 8 bits
-            const S8H: [usize; 16] = [0, 1, 2, 3, 4, 5, 6, 7, 16, 17, 18, 19, 20, 21, 22, 23];
-            const S8L: [usize; 16] = [8, 9, 10, 11, 12, 13, 14, 15, 24, 25, 26, 27, 28, 29, 30, 31];
-            let hi8_prep = simd_swizzle!(hi16, lo16, S8H);
-            let lo8_prep = simd_swizzle!(hi16, lo16, S8L);
-            const MASK_8: u32x16 = u32x16::splat(0x00FF00FF);
-            const SHIFT_8: u32x16 = u32x16::splat(8);
-            let hi8 = (hi8_prep & MASK_8) | ((lo8_prep & MASK_8) << SHIFT_8);
-            let lo8 = (lo8_prep & !MASK_8) | ((hi8_prep & !MASK_8) >> SHIFT_8);
-
-            // 4 bits
-            const S4H: [usize; 16] = [0, 1, 2, 3, 16, 17, 18, 19, 8, 9, 10, 11, 24, 25, 26, 27];
-            const S4L: [usize; 16] = [4, 5, 6, 7, 20, 21, 22, 23, 12, 13, 14, 15, 28, 29, 30, 31];
-            let hi4_prep = simd_swizzle!(hi8, lo8, S4H);
-            let lo4_prep = simd_swizzle!(hi8, lo8, S4L);
-            const MASK_4: u32x16 = u32x16::splat(0x0F0F0F0F);
-            const SHIFT_4: u32x16 = u32x16::splat(4);
-            let hi4 = (hi4_prep & MASK_4) | ((lo4_prep & MASK_4) << SHIFT_4);
-            let lo4 = (lo4_prep & !MASK_4) | ((hi4_prep & !MASK_4) >> SHIFT_4);
-
-            // 2 bits
-            const S2H: [usize; 16] = [0, 1, 16, 17, 4, 5, 20, 21, 8, 9, 24, 25, 12, 13, 28, 29];
-            const S2L: [usize; 16] = [2, 3, 18, 19, 6, 7, 22, 23, 10, 11, 26, 27, 14, 15, 30, 31];
-            let hi2_prep = simd_swizzle!(hi4, lo4, S2H);
-            let lo2_prep = simd_swizzle!(hi4, lo4, S2L);
-            const MASK_2: u32x16 = u32x16::splat(0x33333333);
-            const SHIFT_2: u32x16 = u32x16::splat(2);
-            let hi2 = (hi2_prep & MASK_2) | ((lo2_prep & MASK_2) << SHIFT_2);
-            let lo2 = (lo2_prep & !MASK_2) | ((hi2_prep & !MASK_2) >> SHIFT_2);
-
-            // 1 bit
-            const S1H: [usize; 16] = [0, 16, 2, 18, 4, 20, 6, 22, 8, 24, 10, 26, 12, 28, 14, 30];
-            const S1L: [usize; 16] = [1, 17, 3, 19, 5, 21, 7, 23, 9, 25, 11, 27, 13, 29, 15, 31];
-            let hi1_prep = simd_swizzle!(hi2, lo2, S1H);
-            let lo1_prep = simd_swizzle!(hi2, lo2, S1L);
-            const MASK_1: u32x16 = u32x16::splat(0x55555555);
-            const SHIFT_1: u32x16 = u32x16::splat(1);
-            let hi1 = (hi1_prep & MASK_1) | ((lo1_prep & MASK_1) << SHIFT_1);
-            let lo1 = (lo1_prep & !MASK_1) | ((hi1_prep & !MASK_1) >> SHIFT_1);
-
-            // Final swizzle
-            const SFH: [usize; 16] = [0, 16, 1, 17, 2, 18, 3, 19, 4, 20, 5, 21, 6, 22, 7, 23];
-            const SFL: [usize; 16] = [8, 24, 9, 25, 10, 26, 11, 27, 12, 28, 13, 29, 14, 30, 15, 31];
-            let final_hi = simd_swizzle!(hi1, lo1, SFH);
-            let final_lo = simd_swizzle!(hi1, lo1, SFL);
-            final_hi.copy_to_slice(&mut self.data[i..]);
-            final_lo.copy_to_slice(&mut self.data[i + 16..]);
+            Transposes::inner_transpose_slice(&mut self.data[i..]);
         }
         self
     }
 
     pub fn inner_transpose_scalar(&mut self) -> &mut Self {
-        for i in 0..32 {
-            for j in 0..32 {
-                for k in (j + 1)..32 {
-                    let swap = ((self.data[i * 32 + j] >> k) ^ (self.data[i * 32 + k] >> j)) & 1;
-                    self.data[i * 32 + j] ^= swap << k;
-                    self.data[i * 32 + k] ^= swap << j;
-                }
-            }
+        for i in (0..1024).step_by(32) {
+            Transposes::inner_transpose_slice_scalar(&mut self.data[i..]);
         }
         self
     }
