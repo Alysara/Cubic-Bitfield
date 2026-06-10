@@ -173,7 +173,7 @@ impl TrackedBitfield {
             active_rows: &self.active_rows,
             cur_slices: self.active_slices,
             cur_rows: 0,
-            slice: 0,
+            slice: 32,
         }
     }
 
