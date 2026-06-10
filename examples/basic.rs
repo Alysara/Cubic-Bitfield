@@ -1,5 +1,6 @@
 use std::hint::black_box;
 
+use cubic_bitfields::util::gen_sparse;
 use cubic_bitfields::*;
 
 fn main() {
@@ -21,17 +22,17 @@ fn main() {
     //         bitfield.as_mut_slice()[y * 32 + z] = u32::MAX;
     //     }
     // }
-    let mut bitfield = Bitfield::new(0);
-
-    let array_u1: [u64; 512] = std::array::from_fn(|_| 0xF0F0F0F0F0F0F0F0);
-    let array_u2: [u64; 1024] = std::array::from_fn(|_| 0xF0F0F0F0F0F0F0F0);
-    let array_u4: [u64; 2048] = std::array::from_fn(|_| 0x00FF00FF00FF00FF);
-    let array_u8: [u64; 4096] = std::array::from_fn(|_| 0x00FF00FF00FF00FF);
-    let array_u16: [u64; 8192] = std::array::from_fn(|_| 0x0000FFFF0000FFFF);
+    // let mut bitfield = Bitfield::new(0);
+    //
+    // let array_u1: [u64; 512] = std::array::from_fn(|_| 0xF0F0F0F0F0F0F0F0);
+    // let array_u2: [u64; 1024] = std::array::from_fn(|_| 0xF0F0F0F0F0F0F0F0);
+    // let array_u4: [u64; 2048] = std::array::from_fn(|_| 0x00FF00FF00FF00FF);
+    // let array_u8: [u64; 4096] = std::array::from_fn(|_| 0x00FF00FF00FF00FF);
+    // let array_u16: [u64; 8192] = std::array::from_fn(|_| 0x0000FFFF0000FFFF);
     // // let bitfield = black_box(Bitfield::from_packed_u16::<true>(&array_u16, black_box(0)));
     // // let bitfield = black_box(Bitfield::from_packed_u8::<true>(&array_u8, black_box(0)));
     // let bitfield1 = black_box(Bitfield::from_packed_u1::<true>(&array_u1, black_box(0)));
-    bitfield.load_packed_u2_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u2, 0);
+    // bitfield.load_packed_u2_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u2, 0);
     // let bitfield3 = black_box(Bitfield::from_packed_u4::<true>(&array_u4, black_box(0)));
     // let bitfield4 = black_box(Bitfield::from_packed_u8::<true>(&array_u8, black_box(0)));
     // let bitfield5 = black_box(Bitfield::from_packed_u16::<true>(&array_u16, black_box(0)));
@@ -40,6 +41,36 @@ fn main() {
 
     // black_box(black_box(bitfield1) ^ black_box(bitfield));
 
-    black_box(bitfield);
+    // black_box(bitfield);
     // bitfield.print_inner_slices(0..32);
+    // let array1 = gen_sparse::<2048>(1, 6, 6, 60);
+    // println!("array: {:?}", array1);
+
+    const NUM_BATCHES: usize = 1;
+
+    let array1 = gen_sparse::<2048>(0, NUM_BATCHES, 6, 60);
+    let array2 = gen_sparse::<2048>(1, NUM_BATCHES, 6, 60);
+
+    let mut untracked1 = Bitfield::new(0);
+    let mut untracked2 = Bitfield::new(0);
+    let mut tracked1 = TrackedBitfield::new(0);
+    let mut tracked2 = TrackedBitfield::new(0);
+
+    untracked1.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array1, 0);
+    untracked2.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array2, 0);
+    tracked1.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array1, 0);
+    tracked2.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array2, 0);
+
+    // untracked1 |= untracked2;
+
+    println!("array1: {:?}", array1);
+
+    black_box(&tracked1);
+    black_box(&tracked2);
+
+    tracked1 ^= tracked2;
+
+    black_box(&tracked1);
+
+    // assert_eq!(untracked1, tracked1.to_bitfield());
 }

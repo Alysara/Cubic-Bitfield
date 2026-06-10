@@ -1,10 +1,10 @@
-use std::iter::{Zip, zip};
 use std::mem::transmute;
 use std::ops::*;
 use std::simd::prelude::*;
 
 use crate::loader::*;
-use crate::transposes::Transposes;
+use crate::logger::*;
+use crate::transposes::*;
 
 #[repr(align(64))]
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -12,13 +12,13 @@ pub struct Bitfield {
     data: [u32; 1024],
 }
 
+// Bit operations.
+
 impl BitOr for Bitfield {
     type Output = Self;
     fn bitor(self, rhs: Self) -> Self::Output {
         let mut result = Self::new(0);
-        for i in 0..1024 {
-            result.data[i] = self.data[i] | rhs.data[i];
-        }
+        result |= rhs;
         result
     }
 }
@@ -27,9 +27,7 @@ impl BitAnd for Bitfield {
     type Output = Self;
     fn bitand(self, rhs: Self) -> Self::Output {
         let mut result = Self::new(0);
-        for i in 0..1024 {
-            result.data[i] = self.data[i] & rhs.data[i];
-        }
+        result &= rhs;
         result
     }
 }
@@ -38,9 +36,7 @@ impl BitXor for Bitfield {
     type Output = Self;
     fn bitxor(self, rhs: Self) -> Self::Output {
         let mut result = Self::new(0);
-        for i in 0..1024 {
-            result.data[i] = self.data[i] ^ rhs.data[i];
-        }
+        result ^= rhs;
         result
     }
 }
@@ -127,6 +123,21 @@ impl Bitfield {
     fn set_u64<const SET: u8>(&mut self, index: usize, value: u64) {
         let bitfield_64: &mut [u64; 1024] = unsafe { transmute(&mut self.data) };
         apply_set::<SET, u64>(&mut bitfield_64[index], value);
+    }
+
+    pub fn andnot(&self, rhs: &Self) -> Self {
+        let mut new_bitfield = *self;
+        for i in 0..1024 {
+            new_bitfield.data[i] &= !rhs.data[i];
+        }
+        new_bitfield
+    }
+
+    pub fn andnot_assign(&mut self, rhs: &Self) -> &mut Self {
+        for i in 0..1024 {
+            self.data[i] &= !rhs.data[i];
+        }
+        self
     }
 
     // Core load-into implementations.
@@ -504,97 +515,35 @@ impl Bitfield {
 
     /// Transposes all 1024 elements as a 32x32 matrix.
     pub fn outer_transpose(&mut self) -> &mut Self {
-        Transposes::outer_transpose(&mut self.data);
+        outer_transpose(&mut self.data);
         self
     }
 
     pub fn outer_transpose_scalar(&mut self) -> &mut Self {
-        Transposes::outer_transpose_scalar(&mut self.data);
+        outer_transpose_scalar(&mut self.data);
         self
     }
 
     /// Transposes each chunk of 32 elements as a 32x32 bit matrix.
     pub fn inner_transpose(&mut self) -> &mut Self {
         for i in (0..1024).step_by(32) {
-            Transposes::inner_transpose_slice(&mut self.data[i..]);
+            inner_transpose_slice(&mut self.data[i..]);
         }
         self
     }
 
     pub fn inner_transpose_scalar(&mut self) -> &mut Self {
         for i in (0..1024).step_by(32) {
-            Transposes::inner_transpose_slice_scalar(&mut self.data[i..]);
-        }
-        self
-    }
-
-    pub fn andnot(&self, rhs: &Self) -> Self {
-        let mut new_bitfield = *self;
-        for i in 0..1024 {
-            new_bitfield.data[i] &= !rhs.data[i];
-        }
-        new_bitfield
-    }
-
-    pub fn andnot_assign(&mut self, rhs: &Self) -> &mut Self {
-        for i in 0..1024 {
-            self.data[i] &= !rhs.data[i];
+            inner_transpose_slice_scalar(&mut self.data[i..]);
         }
         self
     }
 
     pub fn print_inner_slices(&self, range: Range<usize>) {
-        assert!(
-            range.end <= 32,
-            "End of range is too large! {} is not <= 32.",
-            range.end
-        );
-        assert!(
-            range.start < 32,
-            "Start of range is too large! {} is not < 32.",
-            range.start
-        );
-
-        for slice in range {
-            println!("{:-<35}", format!("|- Inner slice {slice} "));
-
-            for i in 0..32 {
-                let index = slice * 32 + i;
-                let prefix = if i % 2 == 0 { "+" } else { "|" };
-                println!("{prefix} {:032b}", self.data[index]);
-            }
-            println!("{:-<35}", "|");
-            println!();
-        }
+        print_matrix_inner_slices(&self.data, range);
     }
 
     pub fn print_outer_slices(&self, range: Range<usize>) {
-        assert!(
-            range.end <= 32,
-            "End of range is too large! {} is not <= 32.",
-            range.end
-        );
-        assert!(
-            range.start < 32,
-            "Start of range is too large! {} is not < 32.",
-            range.start
-        );
-
-        for slice in range {
-            println!("{:-<35}", format!("|- Outer slice {slice} "));
-
-            for i in 0..32 {
-                let mut bits = 0;
-                for j in 0..32 {
-                    let index = i * 32 + j;
-                    let bit = (self.data[index] >> slice) & 1;
-                    bits |= bit << j
-                }
-                let prefix = if i % 2 == 0 { "+" } else { "|" };
-                println!("{prefix} {:032b}", bits);
-            }
-            println!("{:-<35}", "|");
-            println!();
-        }
+        print_matrix_outer_slices(&self.data, range);
     }
 }
