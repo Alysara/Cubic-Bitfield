@@ -168,21 +168,16 @@ impl TrackedBitfield {
         self.num_active_slices() == 0
     }
 
-    pub fn active_bit_iter<'a>(&'a self) -> SparseIndexIter<'a> {
-        SparseIndexIter {
-            active_rows: &self.active_rows,
-            cur_slices: self.active_slices,
-            cur_rows: 0,
-            slice: 32,
-        }
+    pub fn active_bit_iter<'a>(&'a self) -> ActiveBitIter<'a> {
+        ActiveBitIter::new(self)
     }
 
     fn simd_active_bit_iter<'a>(&self, rows: &'a [u32; 32]) -> SparseSimdIndexIter<'a> {
         SparseSimdIndexIter {
             active_rows: rows,
             cur_slices: self.active_slices,
-            cur_rows: 0,
-            slice: 32,
+            cur_rows: rows[self.active_slices.trailing_zeros() as usize],
+            slice: self.active_slices.trailing_zeros(),
         }
     }
 
@@ -641,33 +636,57 @@ impl<'a> Iterator for SparseSimdIndexIter<'a> {
     }
 }
 
-pub struct SparseIndexIter<'a> {
-    active_rows: &'a [u32; 32],
+pub struct ActiveBitIter<'a> {
+    bitfield: &'a TrackedBitfield,
     cur_slices: u32,
     cur_rows: u32,
+    cur_bits: u32,
     slice: u32,
+    row: u32,
 }
 
-impl<'a> Iterator for SparseIndexIter<'a> {
+impl<'a> ActiveBitIter<'a> {
+    fn new(bitfield: &'a TrackedBitfield) -> Self {
+        Self {
+            bitfield,
+            cur_slices: bitfield.active_slices,
+            cur_rows: 0,
+            cur_bits: 0,
+            slice: 0,
+            row: 0,
+        }
+    }
+}
+
+impl<'a> Iterator for ActiveBitIter<'a> {
     type Item = usize;
 
     #[inline(always)]
     fn next(&mut self) -> Option<usize> {
         loop {
-            if self.cur_rows != 0 {
-                let row = self.cur_rows.trailing_zeros();
-                let i = ((self.slice * 32) + row) as usize;
-                self.cur_rows &= self.cur_rows - 1;
+            if self.cur_bits != 0 {
+                let bit = self.cur_bits.trailing_zeros();
+                let i = (self.slice * 1024 + self.row * 32 + bit) as usize;
+                self.cur_bits &= self.cur_bits - 1;
                 return Some(i);
             }
 
-            if self.cur_slices == 0 {
-                return None;
+            if self.cur_rows != 0 {
+                self.row = self.cur_rows.trailing_zeros();
+                let i = self.slice * 32 + self.row;
+                self.cur_bits = self.bitfield.as_slice()[i as usize];
+                self.cur_rows &= self.cur_rows - 1;
+                continue;
             }
 
-            self.slice = self.cur_slices.trailing_zeros();
-            self.cur_rows = self.active_rows[self.slice as usize];
-            self.cur_slices &= self.cur_slices - 1;
+            if self.cur_slices != 0 {
+                self.slice = self.cur_slices.trailing_zeros();
+                self.cur_rows = self.bitfield.active_rows[self.slice as usize];
+                self.cur_slices &= self.cur_slices - 1;
+                continue;
+            }
+
+            return None;
         }
     }
 }

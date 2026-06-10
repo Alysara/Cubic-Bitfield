@@ -175,6 +175,8 @@ fn tracked_multi_test() {
     let array4 = gen_sparse::<2048>(3, NUM_BATCHES, 6, 60);
     let array5 = gen_sparse::<2048>(4, NUM_BATCHES, 6, 60);
     let array6 = gen_sparse::<2048>(5, NUM_BATCHES, 6, 60);
+    let array7 = gen_sparse::<2048>(6, 1000, 6, 60);
+    let array8 = gen_sparse::<2048>(7, 1000, 6, 60);
 
     let mut untracked1 = Bitfield::new(0);
     let mut untracked2 = Bitfield::new(0);
@@ -182,12 +184,16 @@ fn tracked_multi_test() {
     let mut untracked4 = Bitfield::new(0);
     let mut untracked5 = Bitfield::new(0);
     let mut untracked6 = Bitfield::new(0);
+    let mut untracked7 = Bitfield::new(0);
+    let mut untracked8 = Bitfield::new(0);
     let mut tracked1 = TrackedBitfield::new(0);
     let mut tracked2 = TrackedBitfield::new(0);
     let mut tracked3 = TrackedBitfield::new(0);
     let mut tracked4 = TrackedBitfield::new(0);
     let mut tracked5 = TrackedBitfield::new(0);
     let mut tracked6 = TrackedBitfield::new(0);
+    let mut tracked7 = TrackedBitfield::new(0);
+    let mut tracked8 = TrackedBitfield::new(0);
 
     untracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
     untracked2.load_packed_u4_into::<SET_OR, CMP_NE>(&array2, 0);
@@ -195,12 +201,16 @@ fn tracked_multi_test() {
     untracked4.load_packed_u4_into::<SET_OR, CMP_NE>(&array4, 0);
     untracked5.load_packed_u4_into::<SET_OR, CMP_NE>(&array5, 0);
     untracked6.load_packed_u4_into::<SET_OR, CMP_NE>(&array6, 0);
+    untracked7.load_packed_u4_into::<SET_OR, CMP_NE>(&array7, 0);
+    untracked8.load_packed_u4_into::<SET_OR, CMP_NE>(&array8, 0);
     tracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
     tracked2.load_packed_u4_into::<SET_OR, CMP_NE>(&array2, 0);
     tracked3.load_packed_u4_into::<SET_OR, CMP_NE>(&array3, 0);
     tracked4.load_packed_u4_into::<SET_OR, CMP_NE>(&array4, 0);
     tracked5.load_packed_u4_into::<SET_OR, CMP_NE>(&array5, 0);
     tracked6.load_packed_u4_into::<SET_OR, CMP_NE>(&array6, 0);
+    tracked7.load_packed_u4_into::<SET_OR, CMP_NE>(&array7, 0);
+    tracked8.load_packed_u4_into::<SET_OR, CMP_NE>(&array8, 0);
 
     untracked1 &= untracked2;
     tracked1 &= tracked2;
@@ -223,5 +233,45 @@ fn tracked_multi_test() {
     untracked1 &= untracked6;
     tracked1 &= tracked6;
 
+    untracked1 ^= untracked7;
+    tracked1 ^= tracked7;
+
+    untracked1 &= untracked8;
+    tracked1 &= tracked8;
+
+    untracked1.inner_transpose().outer_transpose();
+    tracked1.inner_transpose().outer_transpose();
+
     assert_eq!(untracked1, *tracked1.as_bitfield());
+}
+
+#[test]
+fn active_bit_iter_test() {
+    let array1 = gen_sparse::<2048>(0, NUM_BATCHES, 6, 60);
+    let mut untracked1 = Bitfield::new(0);
+    let mut tracked1 = TrackedBitfield::new(0);
+    untracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
+    tracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
+    assert_eq!(
+        untracked1,
+        *tracked1.as_bitfield(),
+        "Bitfield as not equal."
+    );
+
+    let mut iter = tracked1.active_bit_iter();
+
+    let true_array = untracked1.as_array();
+
+    for (i, cur_entry) in true_array.iter().enumerate() {
+        let mut entry = *cur_entry;
+        while entry != 0 {
+            let bit = entry.trailing_zeros();
+            let val = i * 32 + bit as usize;
+
+            let iter_val = iter.next().expect("No next iter value??");
+            assert_eq!(val, iter_val);
+
+            entry &= entry - 1;
+        }
+    }
 }

@@ -31,7 +31,7 @@ pub fn gen_sparse<const N: usize>(
         let pre_size = min_size + rand as usize % (max_size - min_size);
 
         let size = if (pre_size + start) >= N {
-            N - start
+            N.saturating_sub(start)
         } else {
             pre_size
         };

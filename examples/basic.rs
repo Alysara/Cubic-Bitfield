@@ -73,4 +73,38 @@ fn main() {
     black_box(&tracked1);
 
     // assert_eq!(untracked1, tracked1.to_bitfield());
+
+    let array1 = gen_sparse::<2048>(0, NUM_BATCHES, 6, 60);
+    let mut untracked1 = Bitfield::new(0);
+    let mut tracked1 = TrackedBitfield::new(0);
+    untracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
+    tracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
+    assert_eq!(
+        untracked1,
+        *tracked1.as_bitfield(),
+        "Bitfield as not equal."
+    );
+
+    let mut iter = tracked1.active_bit_iter();
+
+    let true_array = untracked1.as_array();
+
+    for (i, cur_entry) in true_array.iter().enumerate() {
+        let mut entry = *cur_entry;
+        while entry != 0 {
+            let bit = entry.trailing_zeros();
+            let val = i * 32 + bit as usize;
+
+            let iter_val = iter.next().expect("No next iter value??");
+
+            println!(
+                "{:<20} {}",
+                format!("true: {val}"),
+                format!("iter: {iter_val}")
+            );
+            assert_eq!(val, iter_val);
+
+            entry &= entry - 1;
+        }
+    }
 }
