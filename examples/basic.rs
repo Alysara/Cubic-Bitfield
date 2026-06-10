@@ -56,10 +56,10 @@ fn main() {
     let mut tracked1 = TrackedBitfield::new(0);
     let mut tracked2 = TrackedBitfield::new(0);
 
-    untracked1.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array1, 0);
-    untracked2.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array2, 0);
-    tracked1.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array1, 0);
-    tracked2.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array2, 0);
+    untracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
+    untracked2.load_packed_u4_into::<SET_OR, CMP_NE>(&array2, 0);
+    tracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
+    tracked2.load_packed_u4_into::<SET_OR, CMP_NE>(&array2, 0);
 
     // untracked1 |= untracked2;
 

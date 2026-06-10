@@ -3,15 +3,15 @@ use std::ops::{BitAndAssign, BitOrAssign, BitXorAssign};
 use std::simd::SimdElement;
 use std::simd::prelude::*;
 
-pub const CMP_FLAG_EQ: u8 = CmpFlag::Eq as u8;
-pub const CMP_FLAG_NE: u8 = CmpFlag::Ne as u8;
-pub const CMP_FLAG_GT: u8 = CmpFlag::Gt as u8;
-pub const CMP_FLAG_LT: u8 = CmpFlag::Lt as u8;
+pub const CMP_EQ: u8 = CmpFlag::Eq as u8;
+pub const CMP_NE: u8 = CmpFlag::Ne as u8;
+pub const CMP_GT: u8 = CmpFlag::Gt as u8;
+pub const CMP_LT: u8 = CmpFlag::Lt as u8;
 
-pub const SET_FLAG_ASSIGN: u8 = SetFlag::Assign as u8;
-pub const SET_FLAG_OR: u8 = SetFlag::Or as u8;
-pub const SET_FLAG_XOR: u8 = SetFlag::Xor as u8;
-pub const SET_FLAG_AND: u8 = SetFlag::And as u8;
+pub const SET_ASSIGN: u8 = SetFlag::Assign as u8;
+pub const SET_OR: u8 = SetFlag::Or as u8;
+pub const SET_XOR: u8 = SetFlag::Xor as u8;
+pub const SET_AND: u8 = SetFlag::And as u8;
 
 #[repr(u8)]
 pub enum CmpFlag {

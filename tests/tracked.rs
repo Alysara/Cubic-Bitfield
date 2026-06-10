@@ -13,10 +13,10 @@ fn tracked_and_test() {
     let mut tracked1 = TrackedBitfield::new(0);
     let mut tracked2 = TrackedBitfield::new(0);
 
-    untracked1.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array1, 0);
-    untracked2.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array2, 0);
-    tracked1.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array1, 0);
-    tracked2.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array2, 0);
+    untracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
+    untracked2.load_packed_u4_into::<SET_OR, CMP_NE>(&array2, 0);
+    tracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
+    tracked2.load_packed_u4_into::<SET_OR, CMP_NE>(&array2, 0);
 
     untracked1 &= untracked2;
     tracked1 &= tracked2;
@@ -34,10 +34,10 @@ fn tracked_or_test() {
     let mut tracked1 = TrackedBitfield::new(0);
     let mut tracked2 = TrackedBitfield::new(0);
 
-    untracked1.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array1, 0);
-    untracked2.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array2, 0);
-    tracked1.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array1, 0);
-    tracked2.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array2, 0);
+    untracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
+    untracked2.load_packed_u4_into::<SET_OR, CMP_NE>(&array2, 0);
+    tracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
+    tracked2.load_packed_u4_into::<SET_OR, CMP_NE>(&array2, 0);
 
     untracked1 |= untracked2;
     tracked1 |= tracked2;
@@ -55,10 +55,10 @@ fn tracked_xor_test() {
     let mut tracked1 = TrackedBitfield::new(0);
     let mut tracked2 = TrackedBitfield::new(0);
 
-    untracked1.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array1, 0);
-    untracked2.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array2, 0);
-    tracked1.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array1, 0);
-    tracked2.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array2, 0);
+    untracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
+    untracked2.load_packed_u4_into::<SET_OR, CMP_NE>(&array2, 0);
+    tracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
+    tracked2.load_packed_u4_into::<SET_OR, CMP_NE>(&array2, 0);
 
     untracked1 ^= untracked2;
     tracked1 ^= tracked2;
@@ -76,10 +76,10 @@ fn tracked_andnot_test() {
     let mut tracked1 = TrackedBitfield::new(0);
     let mut tracked2 = TrackedBitfield::new(0);
 
-    untracked1.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array1, 0);
-    untracked2.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array2, 0);
-    tracked1.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array1, 0);
-    tracked2.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array2, 0);
+    untracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
+    untracked2.load_packed_u4_into::<SET_OR, CMP_NE>(&array2, 0);
+    tracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
+    tracked2.load_packed_u4_into::<SET_OR, CMP_NE>(&array2, 0);
 
     untracked1.andnot_assign(&untracked2);
     tracked1.andnot_assign(&tracked2);
@@ -94,8 +94,8 @@ fn tracked_shr_test() {
     let mut untracked1 = Bitfield::new(0);
     let mut tracked1 = TrackedBitfield::new(0);
 
-    untracked1.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array1, 0);
-    tracked1.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array1, 0);
+    untracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
+    tracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
 
     untracked1 >>= 12;
     tracked1 >>= 12;
@@ -110,8 +110,8 @@ fn tracked_shl_test() {
     let mut untracked1 = Bitfield::new(0);
     let mut tracked1 = TrackedBitfield::new(0);
 
-    untracked1.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array1, 0);
-    tracked1.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array1, 0);
+    untracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
+    tracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
 
     untracked1 <<= 12;
     tracked1 <<= 12;
@@ -129,10 +129,10 @@ fn tracked_inner_transpose_test() {
     let mut tracked1 = TrackedBitfield::new(0);
     let mut tracked2 = TrackedBitfield::new(0);
 
-    untracked1.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array1, 0);
-    untracked2.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array2, 0);
-    tracked1.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array1, 0);
-    tracked2.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array2, 0);
+    untracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
+    untracked2.load_packed_u4_into::<SET_OR, CMP_NE>(&array2, 0);
+    tracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
+    tracked2.load_packed_u4_into::<SET_OR, CMP_NE>(&array2, 0);
 
     untracked1.inner_transpose();
     untracked2.inner_transpose();
@@ -153,10 +153,10 @@ fn tracked_outer_transpose_test() {
     let mut tracked1 = TrackedBitfield::new(0);
     let mut tracked2 = TrackedBitfield::new(0);
 
-    untracked1.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array1, 0);
-    untracked2.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array2, 0);
-    tracked1.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array1, 0);
-    tracked2.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array2, 0);
+    untracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
+    untracked2.load_packed_u4_into::<SET_OR, CMP_NE>(&array2, 0);
+    tracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
+    tracked2.load_packed_u4_into::<SET_OR, CMP_NE>(&array2, 0);
 
     untracked1.outer_transpose();
     untracked2.outer_transpose();
@@ -189,18 +189,18 @@ fn tracked_multi_test() {
     let mut tracked5 = TrackedBitfield::new(0);
     let mut tracked6 = TrackedBitfield::new(0);
 
-    untracked1.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array1, 0);
-    untracked2.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array2, 0);
-    untracked3.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array3, 0);
-    untracked4.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array4, 0);
-    untracked5.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array5, 0);
-    untracked6.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array6, 0);
-    tracked1.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array1, 0);
-    tracked2.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array2, 0);
-    tracked3.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array3, 0);
-    tracked4.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array4, 0);
-    tracked5.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array5, 0);
-    tracked6.load_packed_u4_into::<SET_FLAG_OR, CMP_FLAG_NE>(&array6, 0);
+    untracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
+    untracked2.load_packed_u4_into::<SET_OR, CMP_NE>(&array2, 0);
+    untracked3.load_packed_u4_into::<SET_OR, CMP_NE>(&array3, 0);
+    untracked4.load_packed_u4_into::<SET_OR, CMP_NE>(&array4, 0);
+    untracked5.load_packed_u4_into::<SET_OR, CMP_NE>(&array5, 0);
+    untracked6.load_packed_u4_into::<SET_OR, CMP_NE>(&array6, 0);
+    tracked1.load_packed_u4_into::<SET_OR, CMP_NE>(&array1, 0);
+    tracked2.load_packed_u4_into::<SET_OR, CMP_NE>(&array2, 0);
+    tracked3.load_packed_u4_into::<SET_OR, CMP_NE>(&array3, 0);
+    tracked4.load_packed_u4_into::<SET_OR, CMP_NE>(&array4, 0);
+    tracked5.load_packed_u4_into::<SET_OR, CMP_NE>(&array5, 0);
+    tracked6.load_packed_u4_into::<SET_OR, CMP_NE>(&array6, 0);
 
     untracked1 &= untracked2;
     tracked1 &= tracked2;

@@ -22,93 +22,93 @@ fn load_data_bench(c: &mut Criterion) {
     group.throughput(Throughput::Elements(32768));
     group.bench_function("u1_load", |b| {
         b.iter(|| {
-            bitfield.load_packed_u1_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u1, false);
+            bitfield.load_packed_u1_into::<SET_ASSIGN, CMP_EQ>(&array_u1, false);
             black_box(&bitfield);
         });
     });
     group.bench_function("u2_load", |b| {
         b.iter(|| {
-            bitfield.load_packed_u2_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u2, 0);
+            bitfield.load_packed_u2_into::<SET_ASSIGN, CMP_EQ>(&array_u2, 0);
             black_box(&bitfield);
         });
     });
     group.bench_function("u4_load", |b| {
         b.iter(|| {
-            bitfield.load_packed_u4_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u4, 0);
+            bitfield.load_packed_u4_into::<SET_ASSIGN, CMP_EQ>(&array_u4, 0);
             black_box(&bitfield);
         });
     });
     group.bench_function("u8_load", |b| {
         b.iter(|| {
-            bitfield.load_packed_u8_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u8, 0);
+            bitfield.load_packed_u8_into::<SET_ASSIGN, CMP_EQ>(&array_u8, 0);
             black_box(&bitfield);
         });
     });
     group.bench_function("u16_load", |b| {
         b.iter(|| {
-            bitfield.load_packed_u16_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u16, 0);
+            bitfield.load_packed_u16_into::<SET_ASSIGN, CMP_EQ>(&array_u16, 0);
             black_box(&bitfield);
         });
     });
 
     group.bench_function("u1_yz_load", |b| {
         b.iter(|| {
-            bitfield.load_yz_packed_u1_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u1, 31, false);
+            bitfield.load_yz_packed_u1_into::<SET_ASSIGN, CMP_EQ>(&array_u1, 31, false);
             black_box(&bitfield);
         });
     });
     group.bench_function("u2_yz_load", |b| {
         b.iter(|| {
-            bitfield.load_yz_packed_u2_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u2, 31, 0);
+            bitfield.load_yz_packed_u2_into::<SET_ASSIGN, CMP_EQ>(&array_u2, 31, 0);
             black_box(&bitfield);
         });
     });
     group.bench_function("u4_yz_load", |b| {
         b.iter(|| {
-            bitfield.load_yz_packed_u4_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u4, 31, 0);
+            bitfield.load_yz_packed_u4_into::<SET_ASSIGN, CMP_EQ>(&array_u4, 31, 0);
             black_box(&bitfield);
         });
     });
     group.bench_function("u8_yz_load", |b| {
         b.iter(|| {
-            bitfield.load_yz_packed_u8_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u8, 31, 0);
+            bitfield.load_yz_packed_u8_into::<SET_ASSIGN, CMP_EQ>(&array_u8, 31, 0);
             black_box(&bitfield);
         });
     });
     group.bench_function("u16_yz_load", |b| {
         b.iter(|| {
-            bitfield.load_yz_packed_u16_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u16, 31, 0);
+            bitfield.load_yz_packed_u16_into::<SET_ASSIGN, CMP_EQ>(&array_u16, 31, 0);
             black_box(&bitfield);
         });
     });
 
     group.bench_function("u1_xz_load", |b| {
         b.iter(|| {
-            bitfield.load_xz_packed_u1_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u1, 31, false);
+            bitfield.load_xz_packed_u1_into::<SET_ASSIGN, CMP_EQ>(&array_u1, 31, false);
             black_box(&bitfield);
         });
     });
     group.bench_function("u2_xz_load", |b| {
         b.iter(|| {
-            bitfield.load_xz_packed_u2_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u2, 31, 0);
+            bitfield.load_xz_packed_u2_into::<SET_ASSIGN, CMP_EQ>(&array_u2, 31, 0);
             black_box(&bitfield);
         });
     });
     group.bench_function("u4_xz_load", |b| {
         b.iter(|| {
-            bitfield.load_xz_packed_u4_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u4, 31, 0);
+            bitfield.load_xz_packed_u4_into::<SET_ASSIGN, CMP_EQ>(&array_u4, 31, 0);
             black_box(&bitfield);
         });
     });
     group.bench_function("u8_xz_load", |b| {
         b.iter(|| {
-            bitfield.load_xz_packed_u8_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u8, 31, 0);
+            bitfield.load_xz_packed_u8_into::<SET_ASSIGN, CMP_EQ>(&array_u8, 31, 0);
             black_box(&bitfield);
         });
     });
     group.bench_function("u16_xz_load", |b| {
         b.iter(|| {
-            bitfield.load_xz_packed_u16_into::<SET_FLAG_ASSIGN, CMP_FLAG_EQ>(&array_u16, 31, 0);
+            bitfield.load_xz_packed_u16_into::<SET_ASSIGN, CMP_EQ>(&array_u16, 31, 0);
             black_box(&bitfield);
         });
     });
