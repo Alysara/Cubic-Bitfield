@@ -13,3 +13,9 @@ criterion = "0.8.2"
 [[bench]]
 name = "transposes"
 harness = false
+[[bench]]
+name = "loader"
+harness = false
+[[bench]]
+name = "tracked"
+harness = false
