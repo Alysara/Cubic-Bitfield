@@ -98,6 +98,7 @@ impl Shr<usize> for TrackedBitfield {
 }
 
 impl TrackedBitfield {
+    #[inline(always)]
     pub fn new(val: u32) -> Self {
         let active_val = if val == 0 { 0 } else { u32::MAX };
         Self {
@@ -166,6 +167,14 @@ impl TrackedBitfield {
     #[inline(always)]
     pub fn is_empty(&self) -> bool {
         self.num_active_slices() == 0
+    }
+
+    pub fn is_all(&self) -> bool {
+        self.count_ones() == 32768
+    }
+
+    pub fn count_ones(&self) -> u32 {
+        self.bitfield.count_ones()
     }
 
     pub fn active_bit_iter<'a>(&'a self) -> ActiveBitIter<'a> {

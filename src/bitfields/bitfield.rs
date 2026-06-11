@@ -125,6 +125,10 @@ impl Bitfield {
         apply_set::<SET, u64>(&mut bitfield_64[index], value);
     }
 
+    pub fn count_ones(&self) -> u32 {
+        self.data.iter().map(|x| x.count_ones()).sum()
+    }
+
     pub fn andnot(&self, rhs: &Self) -> Self {
         let mut new_bitfield = *self;
         for i in 0..1024 {
